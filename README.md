@@ -19,27 +19,27 @@ The similar procedure for the backward pass runs in parallel.
 
 
 ## Performance
-[Benchmarked](pytorch_binding/benchmark.py) on a GeForce GTX 1080 Ti GPU.
+[Benchmarked](pytorch_binding/benchmark.py) on a GeForce GTX 1080 Ti GPU, Intel i7-8700 CPU @ 3.20GHz.
 
-|                         |    **warp_rnnt**    | **[warprnnt_pytorch](https://github.com/HawkAaron/warp-transducer/tree/master/pytorch_binding)** |
-| :---------------------- | ------------------: | ------------------: |
+|                         |    warp_rnnt    | [warprnnt_pytorch](https://github.com/HawkAaron/warp-transducer/tree/master/pytorch_binding) | [transducer](https://github.com/awni/transducer) |
+| :---------------------- | ------------------: | ------------------: | ------------------: |
 |  **T=150, U=40, V=28**  | 
-|         N=1             |       0.07 ms       |       0.68 ms       |
-|         N=16            |       0.33 ms       |       1.80 ms       |
-|         N=32            |       0.35 ms       |       3.39 ms       |
-|         N=64            |       0.56 ms       |       6.11 ms       |
-|         N=128           |       0.60 ms       |       9.22 ms       |
+|         N=1             |       0.07 ms       |       0.68 ms       |       1.28 ms       |
+|         N=16            |       0.33 ms       |       1.80 ms       |       6.15 ms       |
+|         N=32            |       0.35 ms       |       3.39 ms       |      12.72 ms       |
+|         N=64            |       0.56 ms       |       6.11 ms       |      23.73 ms       |
+|         N=128           |       0.60 ms       |       9.22 ms       |      47.93 ms       |
 | **T=150, U=20, V=5000** |
-|         N=1             |       0.46 ms       |       2.14 ms       |
-|         N=16            |       1.42 ms       |      21.24 ms       |
-|         N=32            |       2.51 ms       |      38.26 ms       |
-|         N=64            |    out-of-memory    |      75.54 ms       |
-|         N=128           |    out-of-memory    |    out-of-memory    |
+|         N=1             |       0.46 ms       |       2.14 ms       |      21.18 ms       |
+|         N=16            |       1.42 ms       |      21.24 ms       |     240.11 ms       |
+|         N=32            |       2.51 ms       |      38.26 ms       |     490.66 ms       |
+|         N=64            |    out-of-memory    |      75.54 ms       |     944.73 ms       |
+|         N=128           |    out-of-memory    |    out-of-memory    |    1894.93 ms       |
 | **T=1500, U=300, V=50** |
-|         N=1             |       0.60 ms       |      10.77 ms       |
-|         N=16            |       2.25 ms       |      97.69 ms       |
-|         N=32            |       3.97 ms       |     184.73 ms       |
-|         N=64            |    out-of-memory    |     out-of-memory   |
+|         N=1             |       0.60 ms       |      10.77 ms       |     121.82 ms       |
+|         N=16            |       2.25 ms       |      97.69 ms       |     732.50 ms       |
+|         N=32            |       3.97 ms       |     184.73 ms       |    1448.54 ms       |
+|         N=64            |    out-of-memory    |     out-of-memory   |    2767.59 ms       |
 
 
 ## Note

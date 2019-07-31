@@ -3,8 +3,9 @@ import sys
 import torch
 import torch.nn.functional as F
 
-from warp_rnnt import rnnt_loss as loss1
-from warprnnt_pytorch import rnnt_loss as loss2
+#from warp_rnnt import rnnt_loss as loss1
+#from warprnnt_pytorch import rnnt_loss as loss2
+from transducer.functions.transducer import Transducer
 
 from timeit import default_timer as timer
 
@@ -16,6 +17,12 @@ def run_loss1(xs, ys, xn, yn):
 
 def run_loss2(xs, ys, xn, yn):
     return loss2(xs, ys, xn, yn, reduction='none')
+
+
+def run_loss3(xs, ys, xn, yn):
+    xs = F.log_softmax(xs, -1)
+    fn = Transducer(blank_label=0)
+    return fn(xs, ys.view(-1), xn, yn)
 
 
 def run_benchmark(loss, E, N, T, U, V):
@@ -37,10 +44,10 @@ def run_benchmark(loss, E, N, T, U, V):
         xn = torch.ones((N,), dtype=torch.int) * T
         yn = torch.ones((N,), dtype=torch.int) * (U-1)
 
-        xs = xs.cuda()
-        ys = ys.cuda()
-        xn = xn.cuda()
-        yn = yn.cuda()
+        #xs = xs.cuda()
+        #ys = ys.cuda()
+        #xn = xn.cuda()
+        #yn = yn.cuda()
 
         t = timer()
 
@@ -66,7 +73,7 @@ def run_benchmark_safe(loss, E, N, T, U, V):
 
 
 for n in [1, 16, 32, 64, 128]:
-    for loss in [run_loss1, run_loss2]:
-        run_benchmark(loss, E=100, N=n, T=150, U=40, V=28)
+    for loss in [run_loss3]:
+        #run_benchmark(loss, E=100, N=n, T=150, U=40, V=28)
         #run_benchmark_safe(loss, E=10, N=n, T=150, U=20, V=5000)
-        #run_benchmark_safe(loss, E=10, N=n, T=1500, U=300, V=50)
+        run_benchmark_safe(loss, E=10, N=n, T=1500, U=300, V=50)
