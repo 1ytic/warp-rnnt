@@ -1,4 +1,5 @@
 #include "core.h"
+#include <stdio.h>
 
 #define W 32
 #define G 1024
