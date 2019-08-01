@@ -54,16 +54,13 @@ The similar procedure for the backward pass runs in parallel.
 Currently, there is only a binding for PyTorch 1.0 and higher.
 
 ```bash
-git clone https://github.com/1ytic/warp-rnnt
-cd warp-rnnt/pytorch_binding
-python setup.py install
+pip install warp_rnnt
 ```
 
 ## Test
 There is a unittest in `pytorch_binding/warp_rnnt` which includes tests for arguments and outputs as well.
 
 ```bash
-cd ..
 python -m warp_rnnt.test
 ```
 
