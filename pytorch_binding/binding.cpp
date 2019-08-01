@@ -5,7 +5,7 @@
 #include <string>
 
 #include <torch/extension.h>
-#include "../core.h"
+#include "core.h"
 
 #include <torch/data/datasets/base.h>
 #include <torch/data/example.h>

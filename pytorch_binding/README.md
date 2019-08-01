@@ -1,26 +1,7 @@
-import torch
-import warp_rnnt._C as warp_rnnt_core
-from pkg_resources import get_distribution
-
-__version__ = get_distribution('warp_rnnt').version
+# PyTorch bindings for CUDA-Warp RNN-Transducer
 
 
-class _WRNNT(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0):
-        costs, ctx.grads = warp_rnnt_core.rnnt_loss(
-            xs=log_probs, ys=labels,
-            xn=frames_lengths, yn=labels_lengths,
-            blank=blank,
-        )
-        return costs
-
-    @staticmethod
-    def backward(ctx, grads_output):
-        grads_output = grads_output.view(-1, 1, 1, 1).to(ctx.grads)
-        return ctx.grads.mul_(grads_output), None, None, None, None, None
-
-
+```python
 def rnnt_loss(
         log_probs,  # type: torch.FloatTensor
         labels,  # type: torch.IntTensor
@@ -51,22 +32,31 @@ def rnnt_loss(
         Default: 0.
     """
     # type: (...) -> torch.Tensor
+```
 
-    assert average_frames is None or isinstance(average_frames, bool)
-    assert reduction is None or reduction in ("none", "mean", "sum")
-    assert isinstance(blank, int)
+## Requirements
 
-    assert not labels.requires_grad, "labels does not require gradients"
-    assert not frames_lengths.requires_grad, "frames_lengths does not require gradients"
-    assert not labels_lengths.requires_grad, "labels_lengths does not require gradients"
+- C++11 compiler (tested with GCC 5.4).
+- Python: 3.5, 3.6, 3.7 (tested with version 3.6).
+- [PyTorch](http://pytorch.org/) >= 1.0.0 (tested with version 1.1.0).
+- [CUDA Toolkit](https://developer.nvidia.com/cuda-zone) (tested with version 10.0).
 
-    costs = _WRNNT.apply(log_probs, labels, frames_lengths, labels_lengths, blank)
 
-    if average_frames:
-        costs = costs / frames_lengths.to(log_probs)
 
-    if reduction == "sum":
-        return costs.sum()
-    elif reduction == "mean":
-        return costs.mean()
-    return costs
+## Install
+
+Currently, there is no compiled version of the package. The following setup instructions compile the package from the source code locally.
+
+### From Pypi
+
+```bash
+pip install warp_rnnt
+```
+
+### From GitHub
+
+```bash
+git clone https://github.com/1ytic/warp-rnnt
+cd warp-rnnt/pytorch_binding
+python setup.py install
+```
