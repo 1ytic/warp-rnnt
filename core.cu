@@ -40,9 +40,9 @@ __forceinline__ __device__ static float log_sum_exp(float a, float b) {
         maximum = b;
         diff = a-b;
     }
-    if (diff > -42) {
+    //if (diff > -42) {
         maximum += log1pf(expf(diff));
-    }
+    //}
     return maximum;
 }
 

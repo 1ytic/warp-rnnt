@@ -63,7 +63,7 @@ long_description = get_long_description()
 
 setup(
     name="warp_rnnt",
-    version="0.0.7",
+    version="0.0.8",
     description="PyTorch bindings for CUDA-Warp RNN-Transducer",
     long_description=long_description,
     long_description_content_type="text/markdown",
