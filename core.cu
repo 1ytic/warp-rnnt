@@ -9,7 +9,7 @@
 
 #ifndef __CUDACC__
 unsigned int atomicAdd(unsigned int *address, unsigned int value);
-float __shfl_up_sync(unsigned mask, float var, unsigned int delta, int width=warpSize);
+float __shfl_up_sync(unsigned int mask, float var, unsigned int delta, int width=warpSize);
 unsigned int __activemask();
 int __popc(unsigned int x);
 void __threadfence();
@@ -105,7 +105,7 @@ void kernel_warp_alphas(unsigned int *counts, float *alphas, const int *labels, 
 
 #pragma unroll
         for(unsigned int i = 1; i < W; i *= 2) {
-            a = __shfl_up_sync(-1, b, i);
+            a = __shfl_up_sync(0xffffffff, b, i);
             if (i <= d) {
                 b += a;
             }
@@ -130,7 +130,7 @@ void kernel_warp_alphas(unsigned int *counts, float *alphas, const int *labels, 
         float output = r;
 
         for(unsigned int i = 1; i < W; i++) {
-            r = __shfl_up_sync(-1, r, 1);
+            r = __shfl_up_sync(0xffffffff, r, 1);
             if (i == d) {
                 r = log_sum_exp(r + bias, emit);
                 output = r;
@@ -212,7 +212,7 @@ void kernel_warp_betas(unsigned int *counts, float *betas, const int *labels, co
 
 #pragma unroll
         for(unsigned int i = 1; i < W; i *= 2) {
-            a = __shfl_up_sync(-1, b, i);
+            a = __shfl_up_sync(0xffffffff, b, i);
             if (i <= d) {
                 b += a;
             }
@@ -237,7 +237,7 @@ void kernel_warp_betas(unsigned int *counts, float *betas, const int *labels, co
         float output = r;
 
         for(unsigned int i = 1; i < W; i++) {
-            r = __shfl_up_sync(-1, r, 1);
+            r = __shfl_up_sync(0xffffffff, r, 1);
             if (i == d) {
                 r = log_sum_exp(r + bias, emit);
                 output = r;
