@@ -1,12 +1,7 @@
 #ifndef RNNT_CORE_H
 #define RNNT_CORE_H
 
-#include <assert.h>
-#include <algorithm>
 #include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
-#include <device_atomic_functions.h>
-#include <device_launch_parameters.h>
 
 typedef enum {
     RNNT_STATUS_SUCCESS = 0,

@@ -30,6 +30,57 @@ class WRNNTLossTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "ys must be a Int tensor"):
             warp_rnnt_core.rnnt_loss(xs, ys, xn, yn)
 
+    def test_one_to_many(self):
+
+        xs = torch.tensor(
+            [[[[0.1, 0.6, 0.1, 0.1, 0.1],
+               [0.1, 0.1, 0.6, 0.1, 0.1],
+               [0.1, 0.1, 0.2, 0.8, 0.1]]]],
+            dtype=torch.float32)
+
+        xs = torch.nn.functional.log_softmax(xs, dim=-1)
+        ys = torch.tensor([[1, 2]], dtype=torch.int)
+
+        xn = torch.tensor([1], dtype=torch.int)
+        yn = torch.tensor([2], dtype=torch.int)
+
+        costs, grads = warp_rnnt_core.rnnt_loss(
+            xs.cuda(), ys.cuda(),
+            xn.cuda(), yn.cuda())
+
+        expected_cost = 4.274244594423859
+
+        np.testing.assert_almost_equal(costs.item(), expected_cost, decimal=6)
+
+        expected_grads = np.array(
+            [[[[0.0, -1., 0.0, 0.0, 0.0],
+               [0.0, 0.0, -1., 0.0, 0.0],
+               [-1., 0.0, 0.0, 0.0, 0.0]]]])
+
+        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
+
+    def test_one_to_empty(self):
+
+        xs = torch.tensor([[[[0.1, 0.6, 0.1, 0.1, 0.1]]]], dtype=torch.float32)
+
+        xs = torch.nn.functional.log_softmax(xs, dim=-1)
+        ys = torch.tensor([[]], dtype=torch.int)
+
+        xn = torch.tensor([1], dtype=torch.int)
+        yn = torch.tensor([0], dtype=torch.int)
+
+        costs, grads = warp_rnnt_core.rnnt_loss(
+            xs.cuda(), ys.cuda(),
+            xn.cuda(), yn.cuda())
+
+        expected_cost = 1.7314291957733714
+
+        np.testing.assert_almost_equal(costs.item(), expected_cost, decimal=6)
+
+        expected_grads = np.array([[[[-1., 0.0, 0.0, 0.0, 0.0]]]])
+
+        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
+
     def test_forward_single(self):
 
         xs = torch.tensor(

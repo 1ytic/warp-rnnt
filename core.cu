@@ -1,5 +1,19 @@
 #include "core.h"
+
 #include <stdio.h>
+#include <assert.h>
+#include <algorithm>
+#include <cuda_runtime_api.h>
+#include <device_atomic_functions.h>
+#include <device_launch_parameters.h>
+
+#ifndef __CUDACC__
+unsigned int atomicAdd(unsigned int *address, unsigned int value);
+float __shfl_up_sync(unsigned mask, float var, unsigned int delta, int width=warpSize);
+unsigned int __activemask();
+int __popc(unsigned int x);
+void __threadfence();
+#endif
 
 #define W 32
 #define G 1024
@@ -26,9 +40,9 @@ __forceinline__ __device__ static float log_sum_exp(float a, float b) {
         maximum = b;
         diff = a-b;
     }
-    //if (diff > -42) {
+    if (diff > -42) {
         maximum += log1pf(expf(diff));
-    //}
+    }
     return maximum;
 }
 
@@ -43,47 +57,46 @@ void kernel_warp_alphas(unsigned int *counts, float *alphas, const int *labels, 
     unsigned int p = g * W;
     unsigned int t = p + d + 1;
 
-    assert (u < U);
     assert (d < W);
+    assert (u <= U);
+    assert (gridDim.y == U);
     assert (blockDim.x == W);
-    assert (gridDim.y == U - 1);
 
     int actual_t = xn[n];
     int actual_u = yn[n] + 1;
 
-    if (t >= T || t >= actual_t || u >= actual_u)
+    if (t > actual_t || u > actual_u)
         return;
 
-    unsigned int l = labels[idx2(n, u-1, U-1)];
+    unsigned int *lock = counts + n * U * 2 + blockIdx.y;
 
-    unsigned int *lock_col = counts + n * U * 2 + u - 1;
-    unsigned int *lock_row = counts + n * U * 2 + u;
-
-    if (u > 1) {
-        // Wait previous column
-        do {} while (atomicAdd(lock_col, 0) <= g);
+    if (blockIdx.x == 0 && blockIdx.y == 0) {
+        alphas[idx3(n, 0, 0, T, U)] = 0;
     }
 
-    if (g == 0) {
+    if (blockIdx.x > 0) {
+        // Wait previous row
+        do {} while (atomicAdd(lock, 0) < g);
+    }
 
-        alphas[idx3(n, 0, 0, T, U)] = 0;
+    if (blockIdx.y > 0) {
+        // Wait previous column
+        do {} while (atomicAdd(lock-1, 0) <= g);
+    }
+
+    if (blockIdx.x == 0 && u < actual_u) {
 
         // Compute initial row value
+
+        unsigned int l = labels[idx2(n, u-1, U-1)];
 
         float a = alphas[idx3(n, 0, u-1, T, U)];
         float b = log_probs[idx4(n, 0, u-1, l, T, U, V)];
 
         alphas[idx3(n, 0, u, T, U)] = a + b;
     }
-    else {
-        // Wait previous row
-        do {} while (atomicAdd(lock_row, 0) < g);
-    }
 
-    unsigned int mask = __activemask();
-    int w = __popc(mask);
-
-    if (blockIdx.y == 0) {
+    if (blockIdx.y == 0 && t < actual_t) {
 
         // Compute initial column with local scan algorithm
 
@@ -92,7 +105,7 @@ void kernel_warp_alphas(unsigned int *counts, float *alphas, const int *labels, 
 
 #pragma unroll
         for(unsigned int i = 1; i < W; i *= 2) {
-            a = __shfl_up_sync(mask, b, i);
+            a = __shfl_up_sync(-1, b, i);
             if (i <= d) {
                 b += a;
             }
@@ -103,28 +116,37 @@ void kernel_warp_alphas(unsigned int *counts, float *alphas, const int *labels, 
         alphas[idx3(n, t, 0, T, U)] = a + b;
     }
 
-    // Ready to compute alphas[t, u]
+    if (t < actual_t && u < actual_u) {
 
-    float bias = log_probs[idx4(n, t-1, u, blank, T, U, V)];
-    float emit = alphas[idx3(n, t, u-1, T, U)] + log_probs[idx4(n, t, u-1, l, T, U, V)];
+        // Ready to compute alphas[t, u]
 
-    float r = log_sum_exp(alphas[idx3(n, p, u, T, U)] + bias, emit);
-    float output = r;
+        unsigned int l = labels[idx2(n, u-1, U-1)];
 
-    for(unsigned int i = 1; i < W; i++) {
-        r = __shfl_up_sync(mask, r, 1);
-        if (i == d) {
-            r = log_sum_exp(r + bias, emit);
-            output = r;
+        float bias = log_probs[idx4(n, t-1, u, blank, T, U, V)];
+        float skip = alphas[idx3(n, p, u, T, U)] + bias;
+        float emit = alphas[idx3(n, t, u-1, T, U)] + log_probs[idx4(n, t, u-1, l, T, U, V)];
+
+        float r = log_sum_exp(skip, emit);
+        float output = r;
+
+        for(unsigned int i = 1; i < W; i++) {
+            r = __shfl_up_sync(-1, r, 1);
+            if (i == d) {
+                r = log_sum_exp(r + bias, emit);
+                output = r;
+            }
         }
+
+        alphas[idx3(n, t, u, T, U)] = output;
     }
 
-    alphas[idx3(n, t, u, T, U)] = output;
+    unsigned int mask = __activemask();
+    int w = __popc(mask) - 1;
 
-    if (d == w - 1) {
+    if (d == w) {
         // https://stackoverflow.com/a/5233737
         __threadfence();
-        atomicAdd(lock_row, 1);
+        atomicAdd(lock, 1);
     }
 }
 
@@ -139,95 +161,99 @@ void kernel_warp_betas(unsigned int *counts, float *betas, const int *labels, co
     unsigned int p = g * W;
     unsigned int t = p + d + 1;
 
-    assert (u < U);
     assert (d < W);
+    assert (u <= U);
+    assert (gridDim.y == U);
     assert (blockDim.x == W);
-    assert (gridDim.y == U - 1);
 
     int actual_t = xn[n];
     int actual_u = yn[n] + 1;
 
-    if (t >= T || t >= actual_t || u >= actual_u)
+    if (t > actual_t || u > actual_u)
         return;
-
-    unsigned int *lock_col = counts + n * U * 2 + U + u - 1;
-    unsigned int *lock_row = counts + n * U * 2 + U + u;
-
-    if (u > 1) {
-        // Wait previous column
-        do {} while (atomicAdd(lock_col, 0) <= g);
-    }
 
     int T1 = actual_t - 1;
     int U1 = actual_u - 1;
 
-    u = U1 - u;
-    t = T1 - t;
-    p = T1 - p;
+    unsigned int *lock = counts + n * U * 2 + U + blockIdx.y;
 
-    unsigned int l = labels[idx2(n, u, U-1)];
-
-    if (g == 0) {
-
+    if (blockIdx.x == 0 && blockIdx.y == 0) {
         betas[idx3(n, T1, U1, T, U)] = log_probs[idx4(n, T1, U1, blank, T, U, V)];
+    }
+
+    if (blockIdx.x > 0) {
+        // Wait previous row
+        do {} while (atomicAdd(lock, 0) < g);
+    }
+
+    if (blockIdx.y > 0) {
+        // Wait previous column
+        do {} while (atomicAdd(lock-1, 0) <= g);
+    }
+
+    if (blockIdx.x == 0 && u < actual_u) {
 
         // Compute last row value
 
-        float a = betas[idx3(n, T1, u+1, T, U)];
-        float b = log_probs[idx4(n, T1, u, l, T, U, V)];
+        unsigned int l = labels[idx2(n, U1-u, U-1)];
 
-        betas[idx3(n, T1, u, T, U)] = a + b;
-    }
-    else {
-        // Wait previous row
-        do {} while (atomicAdd(lock_row, 0) < g);
+        float a = betas[idx3(n, T1, U1-u+1, T, U)];
+        float b = log_probs[idx4(n, T1, U1-u, l, T, U, V)];
+
+        betas[idx3(n, T1, U1-u, T, U)] = a + b;
     }
 
-    unsigned int mask = __activemask();
-    int w = __popc(mask);
-
-    if (blockIdx.y == 0) {
+    if (blockIdx.y == 0 && t < actual_t) {
 
         // Compute last column with local scan algorithm
 
         float a;
-        float b = log_probs[idx4(n, t, U1, blank, T, U, V)];
+        float b = log_probs[idx4(n, T1-t, U1, blank, T, U, V)];
 
 #pragma unroll
         for(unsigned int i = 1; i < W; i *= 2) {
-            a = __shfl_up_sync(mask, b, i);
+            a = __shfl_up_sync(-1, b, i);
             if (i <= d) {
                 b += a;
             }
         }
 
-        a = betas[idx3(n, p, U1, T, U)];
+        a = betas[idx3(n, T1-p, U1, T, U)];
 
-        betas[idx3(n, t, U1, T, U)] = a + b;
+        betas[idx3(n, T1-t, U1, T, U)] = a + b;
     }
 
-    // Ready to compute betas[t, u]
+    if (t < actual_t && u < actual_u) {
 
-    float bias = log_probs[idx4(n, t, u, blank, T, U, V)];
-    float emit = betas[idx3(n, t, u+1, T, U)] + log_probs[idx4(n, t, u, l, T, U, V)];
+        // Ready to compute betas[T1-t, U1-u]
 
-    float r = log_sum_exp(betas[idx3(n, p, u, T, U)] + bias, emit);
-    float output = r;
+        unsigned int l = labels[idx2(n, U1-u, U-1)];
 
-    for(unsigned int i = 1; i < W; i++) {
-        r = __shfl_up_sync(mask, r, 1);
-        if (i == d) {
-            r = log_sum_exp(r + bias, emit);
-            output = r;
+        float bias = log_probs[idx4(n, T1-t, U1-u, blank, T, U, V)];
+        float skip = betas[idx3(n, T1-p, U1-u, T, U)] + bias;
+        float emit = betas[idx3(n, T1-t, U1-u+1, T, U)] + log_probs[idx4(n, T1-t, U1-u, l, T, U, V)];
+
+        float r = log_sum_exp(skip, emit);
+        float output = r;
+
+        for(unsigned int i = 1; i < W; i++) {
+            r = __shfl_up_sync(-1, r, 1);
+            if (i == d) {
+                r = log_sum_exp(r + bias, emit);
+                output = r;
+            }
         }
+
+        betas[idx3(n, T1-t, U1-u, T, U)] = output;
     }
 
-    betas[idx3(n, t, u, T, U)] = output;
+    unsigned int mask = __activemask();
+    int w = __popc(mask) - 1;
 
-    if (d == w - 1) {
+    if (d == w) {
         // https://stackoverflow.com/a/5233737
         __threadfence();
-        atomicAdd(lock_row, 1);
+        atomicAdd(lock, 1);
     }
 }
 
@@ -260,7 +286,7 @@ void kernel_grads_blank(float *grads, const float *alphas, const float *betas, c
     int actual_t = xn[n];
     int actual_u = yn[n] + 1;
 
-    if (t >= T || t >= actual_t || u >= actual_u)
+    if (t >= actual_t || u >= actual_u)
         return;
 
     if (t == actual_t-1 && u < actual_u-1)
@@ -298,7 +324,7 @@ void kernel_grads_label(float *grads, const float *alphas, const float *betas,
     int actual_t = xn[n];
     int actual_u = yn[n];
 
-    if (t >= T || t >= actual_t || u >= actual_u)
+    if (t >= actual_t || u >= actual_u)
         return;
 
     unsigned int l = labels[idx2(n, u, U-1)];
@@ -355,29 +381,26 @@ rnntStatus_t run_warp_rnnt(cudaStream_t stream, unsigned int *counts, float *alp
                            const int *xn, const int *yn, int N, int T, int U, int V, int blank) {
 
     dim3 threads1(W, 2);
-
-    dim3 blocks1((T - 1 + W - 1) / W, U - 1, N);
-    dim3 blocks2((T + G - 1) / G, U, N);
-    dim3 blocks3((T + G - 1) / G, U - 1, N);
-    dim3 blocks4((N + B - 1) / B, 1, 1);
-
+    dim3 blocks1((T + W - 1) / W, U, N);
     kernel_warp <<<blocks1, threads1, 0, stream>>> (counts, alphas, betas, labels, log_probs, xn, yn, T, U, V, blank);
-
     if (cudaGetLastError() != cudaSuccess)
         return RNNT_STATUS_WARP_FAILED;
 
+    dim3 blocks2((T + G - 1) / G, U, N);
     kernel_grads_blank <<<blocks2, G, 0, stream>>> (grads, alphas, betas, log_probs, xn, yn, T, U, V, blank);
-
     if (cudaGetLastError() != cudaSuccess)
         return RNNT_STATUS_GRADS_BLANK_FAILED;
 
-    kernel_grads_label <<<blocks3, G, 0, stream>>> (grads, alphas, betas, labels, log_probs, xn, yn, T, U, V);
+    if (U > 1) {
 
-    if (cudaGetLastError() != cudaSuccess)
-        return RNNT_STATUS_GRADS_LABEL_FAILED;
+        dim3 blocks3((T + G - 1) / G, U - 1, N);
+        kernel_grads_label <<<blocks3, G, 0, stream>>> (grads, alphas, betas, labels, log_probs, xn, yn, T, U, V);
+        if (cudaGetLastError() != cudaSuccess)
+            return RNNT_STATUS_GRADS_LABEL_FAILED;
+    }
 
+    dim3 blocks4((N + B - 1) / B, 1, 1);
     kernel_fill_costs <<<blocks4, B, 0, stream>>> (costs, grads, alphas, betas, log_probs, xn, yn, N, T, U, V, blank);
-
     if (cudaGetLastError() != cudaSuccess)
         return RNNT_STATUS_COSTS_FAILED;
 
