@@ -1,3 +1,6 @@
+![PyPI](https://img.shields.io/pypi/v/warp-rnnt.svg)
+[![Downloads](https://pepy.tech/badge/warp-rnnt)](https://pepy.tech/project/warp-rnnt)
+
 # CUDA-Warp RNN-Transducer
 A GPU implementation of RNN Transducer (Graves [2012](https://arxiv.org/abs/1211.3711), [2013](https://arxiv.org/abs/1303.5778)).
 This code is ported from the [reference implementation](https://github.com/awni/transducer/blob/master/ref_transduce.py) (by Awni Hannun)
@@ -48,6 +51,8 @@ The similar procedure for the backward pass runs in parallel.
 - In addition to alphas/betas arrays, counts array is allocated with shape (N, U * 2), which is used as a scheduling mechanism.
 
 - Do not expect that this implementation will greatly reduce the training time of RNN Transducer model. Probably, the main bottleneck will be a trainable joint network with an output (N, T, U, V).
+
+- Also, there is a restricted version, called [Recurrent Neural Aligner](https://github.com/1ytic/warp-rna), with assumption that the length of input sequence is equal to or greater than the length of target sequence.
 
 
 ## Install
