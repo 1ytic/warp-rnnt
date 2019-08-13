@@ -1,40 +1,32 @@
-#include <cstring>
-
 #include <tuple>
-#include <sstream>
 #include <string>
-
-#include <torch/extension.h>
-#include "core.h"
-
-#include <torch/data/datasets/base.h>
-#include <torch/data/example.h>
-#include <torch/types.h>
-
-#include <ATen/ATen.h>
-#include <ATen/Context.h>
-#include <ATen/Device.h>
-#include <ATen/DeviceGuard.h>
-#include <ATen/Parallel.h>
 
 #include <THC/THC.h>
 
+#include <torch/types.h>
+#include <torch/extension.h>
+
+#include "core.h"
+
+#ifndef TORCH_CHECK
+#define TORCH_CHECK AT_CHECK
+#endif
 
 #define CHECK_CONTIGUOUS(x)                                     \
-  AT_CHECK((x).is_contiguous(),                                 \
-           #x " must be contiguous")
+  TORCH_CHECK((x).is_contiguous(),                              \
+              #x " must be contiguous")
 
 #define CHECK_CUDA(x)                                           \
-  AT_CHECK((x).device().is_cuda(),                              \
-           #x " must be located in the CUDA")
+  TORCH_CHECK((x).device().is_cuda(),                           \
+              #x " must be located in the CUDA")
 
 #define CHECK_FLOAT(x)                                          \
-  AT_CHECK((x).type().scalarType() == at::ScalarType::Float,    \
-           #x " must be a Float tensor")
+  TORCH_CHECK((x).type().scalarType() == at::ScalarType::Float, \
+              #x " must be a Float tensor")
 
 #define CHECK_INT(x)                                            \
-  AT_CHECK((x).type().scalarType() == at::ScalarType::Int,      \
-           #x " must be a Int tensor")
+  TORCH_CHECK((x).type().scalarType() == at::ScalarType::Int,   \
+              #x " must be a Int tensor")
 
 
 std::tuple<at::Tensor, at::Tensor> rnnt_loss(
@@ -57,10 +49,10 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss(
     CHECK_CUDA(xn);
     CHECK_CUDA(yn);
     // Check number of dimensions and elements
-    AT_CHECK(xs.dim() == 4, "xs must have 4 dimensions")
-    AT_CHECK(xn.numel() == xs.size(0), "xn shape must be equal (N,)")
-    AT_CHECK(yn.numel() == xs.size(0), "yn shape must be equal (N,)")
-    AT_CHECK(xs.size(2) == ys.size(1) + 1, "ys shape (N, U-1) mismatched with xs (N, T, U, V)")
+    TORCH_CHECK(xs.dim() == 4, "xs must have 4 dimensions")
+    TORCH_CHECK(xn.numel() == xs.size(0), "xn shape must be equal (N,)")
+    TORCH_CHECK(yn.numel() == xs.size(0), "yn shape must be equal (N,)")
+    TORCH_CHECK(xs.size(2) == ys.size(1) + 1, "ys shape (N, U-1) mismatched with xs (N, T, U, V)")
 
     const auto N = xs.size(0);
     const auto T = xs.size(1);
@@ -97,7 +89,7 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss(
         N, T, U, V, blank
     );
 
-    AT_CHECK(status == RNNT_STATUS_SUCCESS, "rnnt_loss status " + std::to_string(status));
+    TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "rnnt_loss status " + std::to_string(status));
 
     return std::make_tuple(costs, grads);
 }
