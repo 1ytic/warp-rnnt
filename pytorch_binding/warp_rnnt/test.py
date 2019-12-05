@@ -1,7 +1,7 @@
 import torch
 import unittest
 import numpy as np
-import warp_rnnt._C as warp_rnnt_core
+import warp_rnnt._C as core
 
 
 xs = torch.tensor([], dtype=torch.float32)
@@ -10,25 +10,25 @@ xn = torch.tensor([], dtype=torch.int)
 yn = torch.tensor([], dtype=torch.int)
 
 
-class WRNNTLossTest(unittest.TestCase):
+class RNNTLossTest(unittest.TestCase):
 
     def test_contiguous(self):
         xs = torch.tensor(np.zeros((4, 3, 2, 1)), dtype=torch.float32).transpose(0, 1)
         with self.assertRaisesRegex(RuntimeError, "xs must be contiguous"):
-            warp_rnnt_core.rnnt_loss(xs, ys, xn, yn)
+            core.rnnt_loss(xs, ys, xn, yn)
 
     def test_device(self):
         with self.assertRaisesRegex(RuntimeError, "xs must be located in the CUDA"):
-            warp_rnnt_core.rnnt_loss(xs, ys, xn, yn)
+            core.rnnt_loss(xs, ys, xn, yn)
 
     def test_shape(self):
         with self.assertRaisesRegex(RuntimeError, "xs must have 4 dimensions"):
-            warp_rnnt_core.rnnt_loss(xs.cuda(), ys.cuda(), xn.cuda(), yn.cuda())
+            core.rnnt_loss(xs.cuda(), ys.cuda(), xn.cuda(), yn.cuda())
 
     def test_type(self):
         ys = torch.tensor([], dtype=torch.long)
         with self.assertRaisesRegex(RuntimeError, "ys must be a Int tensor"):
-            warp_rnnt_core.rnnt_loss(xs, ys, xn, yn)
+            core.rnnt_loss(xs, ys, xn, yn)
 
     def test_one_to_many(self):
 
@@ -44,7 +44,7 @@ class WRNNTLossTest(unittest.TestCase):
         xn = torch.tensor([1], dtype=torch.int)
         yn = torch.tensor([2], dtype=torch.int)
 
-        costs, grads = warp_rnnt_core.rnnt_loss(
+        costs, grads = core.rnnt_loss(
             xs.cuda(), ys.cuda(),
             xn.cuda(), yn.cuda())
 
@@ -69,7 +69,7 @@ class WRNNTLossTest(unittest.TestCase):
         xn = torch.tensor([1], dtype=torch.int)
         yn = torch.tensor([0], dtype=torch.int)
 
-        costs, grads = warp_rnnt_core.rnnt_loss(
+        costs, grads = core.rnnt_loss(
             xs.cuda(), ys.cuda(),
             xn.cuda(), yn.cuda())
 
@@ -98,7 +98,7 @@ class WRNNTLossTest(unittest.TestCase):
         xn = torch.tensor([2], dtype=torch.int)
         yn = torch.tensor([2], dtype=torch.int)
 
-        costs, grads = warp_rnnt_core.rnnt_loss(
+        costs, grads = core.rnnt_loss(
             xs.cuda(), ys.cuda(),
             xn.cuda(), yn.cuda())
 
@@ -148,7 +148,7 @@ class WRNNTLossTest(unittest.TestCase):
         xn = torch.tensor([2, 3], dtype=torch.int)
         yn = torch.tensor([2, 2], dtype=torch.int)
 
-        costs, grads = warp_rnnt_core.rnnt_loss(
+        costs, grads = core.rnnt_loss(
             xs.cuda(), ys.cuda(),
             xn.cuda(), yn.cuda())
 
@@ -201,9 +201,52 @@ class WRNNTLossTest(unittest.TestCase):
           xn = torch.tensor([t] * n, dtype=torch.int)
           yn = torch.tensor(rng.randint(1, u, n), dtype=torch.int)
 
-          costs, grads = warp_rnnt_core.rnnt_loss(
+          costs, grads = core.rnnt_loss(
             xs.cuda(), ys.cuda(),
             xn.cuda(), yn.cuda())
+
+    def test_forward_single_gather(self, blank=0):
+
+        xs = torch.tensor(
+            [[[[0.1, 0.6, 0.1, 0.1, 0.1],
+               [0.1, 0.1, 0.6, 0.1, 0.1],
+               [0.1, 0.1, 0.2, 0.8, 0.1]],
+              [[0.1, 0.6, 0.1, 0.1, 0.1],
+               [0.1, 0.1, 0.2, 0.1, 0.1],
+               [0.7, 0.1, 0.2, 0.1, 0.1]]]],
+            dtype=torch.float32)
+
+        xs = torch.nn.functional.log_softmax(xs, dim=-1)
+        ys = torch.tensor([[1, 2]], dtype=torch.int)
+
+        xn = torch.tensor([2], dtype=torch.int)
+        yn = torch.tensor([2], dtype=torch.int)
+
+        N, T, U, V = xs.size()
+
+        index = torch.full([N, T, U, 2], blank, device=xs.device, dtype=torch.long)
+
+        index[:, :, :U-1, 1] = ys.unsqueeze(dim=1)
+
+        xs = xs.gather(dim=3, index=index)
+
+        costs, grads = core.rnnt_loss(
+            xs.cuda(), ys.cuda(),
+            xn.cuda(), yn.cuda(), blank=-1)
+
+        expected_cost = 4.495666
+
+        np.testing.assert_almost_equal(costs.item(), expected_cost, decimal=6)
+
+        expected_grads = np.array(
+            [[[[-0.308198071906, -0.6918019280939998],
+               [-0.308198071906, -0.3836038561880001],
+               [-0.3836038561880001, 0.0]],
+              [[0.0, -0.308198071906],
+               [0.0, -0.6163961438119995],
+               [-0.9999999999999991, 0.0]]]])
+
+        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
 
 
 if __name__ == "__main__":

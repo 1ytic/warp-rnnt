@@ -63,7 +63,7 @@ long_description = get_long_description()
 
 setup(
     name="warp_rnnt",
-    version="0.1.0",
+    version="0.3.0",
     description="PyTorch bindings for CUDA-Warp RNN-Transducer",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -75,7 +75,7 @@ setup(
     ext_modules=[
         CUDAExtension(
             name="warp_rnnt._C",
-            sources=["core.cu", "binding.cpp"],
+            sources=["core.cu", "core_gather.cu", "binding.cpp"],
             extra_compile_args=extra_compile_args,
         )
     ],

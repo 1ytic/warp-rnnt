@@ -80,14 +80,32 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss(
 
     auto stream = at::cuda::getCurrentCUDAStream(xs.device().index());
 
-    auto status = run_warp_rnnt(stream,
-        (unsigned int *)counts.data<int>(),
-        alphas.data<float>(), betas.data<float>(),
-        ys.data<int>(), xs.data<float>(),
-        grads.data<float>(), costs.data<float>(),
-        xn.data<int>(), yn.data<int>(),
-        N, T, U, V, blank
-    );
+    rnntStatus_t status;
+
+    if (blank == -1) {
+
+        TORCH_CHECK(V == 2, "xs must have values only for blank and label")
+
+        status = run_warp_rnnt_gather(stream,
+                                      (unsigned int *)counts.data<int>(),
+                                      alphas.data<float>(), betas.data<float>(),
+                                      xs.data<float>(),
+                                      grads.data<float>(), costs.data<float>(),
+                                      xn.data<int>(), yn.data<int>(),
+                                      N, T, U
+        );
+
+    } else {
+
+        status = run_warp_rnnt(stream,
+                               (unsigned int *)counts.data<int>(),
+                               alphas.data<float>(), betas.data<float>(),
+                               ys.data<int>(), xs.data<float>(),
+                               grads.data<float>(), costs.data<float>(),
+                               xn.data<int>(), yn.data<int>(),
+                               N, T, U, V, blank
+        );
+    }
 
     TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "rnnt_loss status " + std::to_string(status));
 

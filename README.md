@@ -50,6 +50,8 @@ The similar procedure for the backward pass runs in parallel.
 
 - In addition to alphas/betas arrays, counts array is allocated with shape (N, U * 2), which is used as a scheduling mechanism.
 
+- [core_gather.cu](core_gather.cu) is a slightly memory-efficient version that expects log_probs with the shape (N, T, U, 2) only for blank and labels values.
+
 - Do not expect that this implementation will greatly reduce the training time of RNN Transducer model. Probably, the main bottleneck will be a trainable joint network with an output (N, T, U, V).
 
 - Also, there is a restricted version, called [Recurrent Neural Aligner](https://github.com/1ytic/warp-rna), with assumption that the length of input sequence is equal to or greater than the length of target sequence.
@@ -63,7 +65,7 @@ pip install warp_rnnt
 ```
 
 ## Test
-There is a unittest in `pytorch_binding/warp_rnnt` which includes tests for arguments and outputs as well.
+There is an unittest in `pytorch_binding/warp_rnnt` which includes tests for arguments and outputs as well.
 
 ```bash
 python -m warp_rnnt.test

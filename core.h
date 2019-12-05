@@ -20,6 +20,10 @@ rnntStatus_t run_warp_rnnt(cudaStream_t stream, unsigned int *counts, float *alp
                            const int *labels, const float *log_probs, float *grads, float *costs,
                            const int *xn, const int *yn, int N, int T, int U, int V, int blank);
 
+rnntStatus_t run_warp_rnnt_gather(cudaStream_t stream, unsigned int *counts, float *alphas, float *betas,
+                                  const float *log_probs, float *grads, float *costs,
+                                  const int *xn, const int *yn, int N, int T, int U);
+
 #ifdef __cplusplus
 }
 #endif
