@@ -65,7 +65,7 @@ pip install warp_rnnt
 ```
 
 ## Test
-There is an unittest in `pytorch_binding/warp_rnnt` which includes tests for arguments and outputs as well.
+There is a unittest in `pytorch_binding/warp_rnnt` which includes tests for arguments and outputs as well.
 
 ```bash
 python -m warp_rnnt.test

@@ -37,7 +37,7 @@ def rnnt_loss(log_probs: torch.FloatTensor,
 
 ## Requirements
 
-- C++11 compiler (tested with GCC 5.4).
+- C++11 or C++14 compiler (tested with GCC 5.4).
 - Python: 3.5, 3.6, 3.7 (tested with version 3.6).
 - [PyTorch](http://pytorch.org/) >= 1.0.0 (tested with version 1.1.0).
 - [CUDA Toolkit](https://developer.nvidia.com/cuda-zone) (tested with version 10.0).
