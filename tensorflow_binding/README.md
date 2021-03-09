@@ -68,29 +68,31 @@ See the main WarpTransducer documentation for more information.
 
 ## Python interface
 ```python
-def transducer_loss(log_probs, labels, frames_lengths, labels_lengths, blank_label=0):
-    '''Computes the Transducer loss between a sequence of activations and a
-    ground truth labeling.
+def transducer_loss(
+        log_probs, labels, frames_lengths, labels_lengths,
+        average_frames: bool = False,
+        reduction: Optional[AnyStr] = None,
+        blank: int = 0):
+    """The CUDA-Warp Transducer loss.
+
     Args:
-        log_probs: A 4-D Tensor of floats.  The dimensions
-                     should be (B, T, U+1, V), where B is the minibatch index,
-                     T is the time index, U is the label sequence
-                     length (+1 means blank label prepanded), 
-                     and V indexes over activations for each 
-                     symbol in the alphabet.
-        labels: A 2-D Tensor of ints, a padded label sequences to make sure 
-                     labels for the minibatch are same length.
-        frames_lengths: A 1-D Tensor of ints, the number of time steps
-                       for each sequence in the minibatch.
-        labels_lengths: A 1-D Tensor of ints, the length of each label
-                       for each example in the minibatch.
-        blank_label: int, the label value/index that the RNNT
-                     calculation should use as the blank label
-    Returns:
-        1-D float Tensor, the cost of each example in the minibatch
-        (as negative log probabilities).
-    * This class performs the softmax operation internally.
-    * The label reserved for the blank symbol should be label 0.
-    '''
+        log_probs (FloatTensor): Input tensor with shape (N, T, U, V)
+            where N is the minibatch size, T is the maximum number of
+            input frames, U is the maximum number of output labels and V is
+            the vocabulary of labels (including the blank).
+        labels (IntTensor): Tensor with shape (N, U-1) representing the
+            reference labels for all samples in the minibatch.
+        frames_lengths (IntTensor): Tensor with shape (N,) representing the
+            number of frames for each sample in the minibatch.
+        labels_lengths (IntTensor): Tensor with shape (N,) representing the
+            length of the transcription for each sample in the minibatch.
+        average_frames (bool, optional): Specifies whether the loss of each
+            sample should be divided by its number of frames.
+            Default: False.
+        reduction (string, optional): Specifies the type of reduction.
+            Default: None.
+        blank (int, optional): label used to represent the blank symbol.
+            Default: 0.
+    """
 ```
 
