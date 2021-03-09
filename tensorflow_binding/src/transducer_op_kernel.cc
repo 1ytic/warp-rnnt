@@ -157,8 +157,6 @@ class TransducerLossOpGPU : public TransducerLossOpBase {
 };
 
 REGISTER_KERNEL_BUILDER(Name("TransducerLoss").Device(::tensorflow::DEVICE_GPU)
-                        .HostMemory("labels_lengths")
-                        .HostMemory("frames_lengths")
                         .HostMemory("costs"),
                         TransducerLossOpGPU);
 
