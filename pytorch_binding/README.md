@@ -61,3 +61,10 @@ git clone https://github.com/1ytic/warp-rnnt
 cd warp-rnnt/pytorch_binding
 python setup.py install
 ```
+
+## Test
+There is a unittest which includes tests for arguments and outputs as well.
+
+```bash
+python -m warp_rnnt.test
+```
