@@ -128,14 +128,25 @@ class TransducerLossOpBase : public tf::OpKernel {
     auto labels_lengths_t = labels_lengths->vec<int32_t>();
     auto frames_lengths_t = frames_lengths->vec<int32_t>();
 
-    status = run_warp_rnnt(cuda_stream,
-                           (unsigned int *)counts.data(),
-                           alphas.data(), betas.data(),
-                           labels_t.data(), log_probs_t.data(),
-                           grads.data(), costs.data(),
-                           frames_lengths_t.data(), labels_lengths_t.data(),
-                           N, T, U, V, blank_
-                          );
+    if (blank_ == -1) {
+      status = run_warp_rnnt_gather(cuda_stream,
+                                    (unsigned int *)counts.data(),
+                                    alphas.data(), betas.data(),
+                                    log_probs_t.data(),
+                                    grads.data(), costs.data(),
+                                    frames_lengths_t.data(), labels_lengths_t.data(),
+                                    N, T, U
+                                   );
+    } else {
+      status = run_warp_rnnt(cuda_stream,
+                             (unsigned int *)counts.data(),
+                             alphas.data(), betas.data(),
+                             labels_t.data(), log_probs_t.data(),
+                             grads.data(), costs.data(),
+                             frames_lengths_t.data(), labels_lengths_t.data(),
+                             N, T, U, V, blank_
+                            );
+    }
 
     OP_REQUIRES(ctx, status == RNNT_STATUS_SUCCESS,
                 tf::errors::Internal("transducer compute error in run_warp_rnnt: ", transducerGetStatusString(status))

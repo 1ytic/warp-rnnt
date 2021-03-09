@@ -41,5 +41,5 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}")
 set(CMAKE_SKIP_RPATH TRUE)
 
 MESSAGE(STATUS "Building shared library with GPU support")
-CUDA_ADD_LIBRARY(transducer_core SHARED core.cu)
+CUDA_ADD_LIBRARY(transducer_core SHARED core.cu core_gather.cu)
 
