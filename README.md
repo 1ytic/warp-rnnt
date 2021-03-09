@@ -44,8 +44,12 @@ The similar procedure for the backward pass runs in parallel.
 |         N=32            |       3.97 ms       |     184.73 ms       |    1448.54 ms       |
 |         N=64            |    out-of-memory    |     out-of-memory   |    2767.59 ms       |
 
+## TODO
+
+- Fix the original benchmarking methodology as mentioned in this issue [#9](../../issues/9)
 
 ## Note
+
 - This implementation assumes that the input is log_softmax.
 
 - In addition to alphas/betas arrays, counts array is allocated with shape (N, U * 2), which is used as a scheduling mechanism.
@@ -58,18 +62,10 @@ The similar procedure for the backward pass runs in parallel.
 
 
 ## Install
-Currently, there is only a binding for PyTorch 1.0 and higher.
+There are two bindings for the core algorithm:
+- [pytorch_binding](pytorch_binding)
+- [tensorflow_binding](tensorflow_binding)
 
-```bash
-pip install warp_rnnt
-```
-
-## Test
-There is a unittest in `pytorch_binding/warp_rnnt` which includes tests for arguments and outputs as well.
-
-```bash
-python -m warp_rnnt.test
-```
 
 ## Reference
 - Awni Hannun [transducer](https://github.com/awni/transducer)
