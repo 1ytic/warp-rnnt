@@ -72,7 +72,8 @@ def transducer_loss(
         log_probs, labels, frames_lengths, labels_lengths,
         average_frames: bool = False,
         reduction: Optional[AnyStr] = None,
-        blank: int = 0):
+        blank: int = 0,
+        gather: bool = False):
     """The CUDA-Warp Transducer loss.
 
     Args:
@@ -93,6 +94,8 @@ def transducer_loss(
             Default: None.
         blank (int, optional): label used to represent the blank symbol.
             Default: 0.
+        gather (bool, optional): Reduce memory consumption.
+            Default: False.
     """
 ```
 
