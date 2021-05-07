@@ -17,11 +17,10 @@ class RNNTLossTest(tf.test.TestCase):
                         ys, yn,
                         expected_costs, expected_grads,
                         blank=0,
-                        use_gpu=True, expected_error=None):
+                        use_gpu=True, expected_error=None,
+                        gather=False):
 
         with tf.device("/gpu:0"):
-            if not isinstance(expected_costs, type(None)):
-                self.assertEquals(xs.shape, expected_grads.shape)
             xs_t = tf.constant(xs)
             xn_t = tf.constant(xn)
             ys_t = tf.constant(ys)
@@ -33,7 +32,8 @@ class RNNTLossTest(tf.test.TestCase):
                 labels_lengths=yn_t,
                 average_frames=False,
                 reduction=None,
-                blank=blank)
+                blank=blank,
+                gather=gather)
 
             grad = tf.gradients(costs, [xs_t])[0]
 
@@ -259,6 +259,35 @@ class RNNTLossTest(tf.test.TestCase):
                              ys, yn,
                              expected_costs=expected_costs, expected_grads=expected_grads,
                              use_gpu=True, expected_error=None, blank=-1)
+
+    def test_forward_single_inner_gather(self, blank=0):
+        xs = np.asarray(
+            [[[[0.1, 0.6, 0.1, 0.1, 0.1],
+               [0.1, 0.1, 0.6, 0.1, 0.1],
+               [0.1, 0.1, 0.2, 0.8, 0.1]],
+              [[0.1, 0.6, 0.1, 0.1, 0.1],
+               [0.1, 0.1, 0.2, 0.1, 0.1],
+               [0.7, 0.1, 0.2, 0.1, 0.1]]]],
+            dtype=np.float32)
+        xs = log_softmax(xs, axis=-1)
+        ys = np.asarray([[1, 2]], dtype=np.int32)
+        xn = np.asarray([2], dtype=np.int32)
+        yn = np.asarray([2], dtype=np.int32)
+        expected_cost = 4.495666
+        expected_costs = np.asarray([expected_cost], dtype=np.float32)
+        expected_grads = np.array(
+            [[[[-0.308198071906, -0.6918019280939998, 0.0, 0.0, 0.0],
+               [-0.308198071906, 0.0, -0.3836038561880001, 0.0, 0.0],
+               [-0.3836038561880001, 0.0, 0.0, 0.0, 0.0]],
+              [[0.0, -0.308198071906, 0.0, 0.0, 0.0],
+               [0.0, 0.0, -0.6163961438119995, 0.0, 0.0],
+               [-0.9999999999999991, 0.0, 0.0, 0.0, 0.0]]]],
+            dtype=np.float32)
+
+        self._run_transducer(xs, xn,
+                             ys, yn,
+                             expected_costs=expected_costs, expected_grads=expected_grads,
+                             use_gpu=True, expected_error=None, gather=True)
 
 
 if __name__ == "__main__":
