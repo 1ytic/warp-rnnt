@@ -92,7 +92,7 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss(
                                       xs.data<float>(),
                                       grads.data<float>(), costs.data<float>(),
                                       xn.data<int>(), yn.data<int>(),
-                                      N, T, U
+                                      N, T, U, fastemit_lambda
         );
 
     } else {
