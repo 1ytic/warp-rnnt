@@ -1,7 +1,6 @@
 import imp
 import tensorflow as tf
 from tensorflow.python.framework import ops
-from tensorflow.python.ops.nn_grad import _BroadcastMul
 from typing import Optional, AnyStr
 
 lib_file = imp.find_module('kernels', __path__)[1]
@@ -83,7 +82,8 @@ def transducer_loss(
         average_frames: bool = False,
         reduction: Optional[AnyStr] = None,
         blank: int = 0,
-        gather: bool = False):
+        gather: bool = False,
+        fastemit_lambda: float = 0.0):
     """The CUDA-Warp Transducer loss.
 
     Args:
@@ -106,6 +106,9 @@ def transducer_loss(
             Default: 0.
         gather (bool, optional): Reduce memory consumption.
             Default: False.
+        fastemit_lambda (float, optional): FastEmit regularization
+            (https://arxiv.org/abs/2010.11148).
+            Default: 0.0.
     """
     assert average_frames is None or isinstance(average_frames, bool)
     assert reduction is None or reduction in ("none", "mean", "sum")
@@ -116,7 +119,7 @@ def transducer_loss(
         blank = -1
 
     costs, _ = _warp_transducer.transducer_loss(
-        log_probs, labels, frames_lengths, labels_lengths, blank)
+        log_probs, labels, frames_lengths, labels_lengths, blank, fastemit_lambda)
 
     if average_frames:
         costs = costs / frames_lengths  # (N,)
