@@ -32,7 +32,7 @@
 std::tuple<at::Tensor, at::Tensor> rnnt_loss(
         const at::Tensor& xs, const at::Tensor& ys,
         const at::Tensor& xn, const at::Tensor& yn,
-        const int blank) {
+        const int blank, const float fastemit_lambda) {
     // Check contiguous
     CHECK_CONTIGUOUS(xs);
     CHECK_CONTIGUOUS(ys);
@@ -92,7 +92,7 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss(
                                       xs.data<float>(),
                                       grads.data<float>(), costs.data<float>(),
                                       xn.data<int>(), yn.data<int>(),
-                                      N, T, U
+                                      N, T, U, fastemit_lambda
         );
 
     } else {
@@ -103,7 +103,7 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss(
                                ys.data<int>(), xs.data<float>(),
                                grads.data<float>(), costs.data<float>(),
                                xn.data<int>(), yn.data<int>(),
-                               N, T, U, V, blank
+                               N, T, U, V, blank, fastemit_lambda
         );
     }
 
@@ -121,6 +121,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         pybind11::arg("ys"),
         pybind11::arg("xn"),
         pybind11::arg("yn"),
-        pybind11::arg("blank") = 0
+        pybind11::arg("blank") = 0,
+        pybind11::arg("fastemit_lambda") = 0.0
     );
 }

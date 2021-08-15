@@ -8,7 +8,8 @@ def rnnt_loss(log_probs: torch.FloatTensor,
               average_frames: bool = False,
               reduction: Optional[AnyStr] = None,
               blank: int = 0,
-              gather: bool = False) -> torch.Tensor:
+              gather: bool = False,
+              fastemit_lambda: float = 0.0) -> torch.Tensor:
 
     """The CUDA-Warp RNN-Transducer loss.
 
@@ -32,6 +33,9 @@ def rnnt_loss(log_probs: torch.FloatTensor,
             Default: 0.
         gather (bool, optional): Reduce memory consumption.
             Default: False.
+        fastemit_lambda (float, optional): FastEmit regularization
+            (https://arxiv.org/abs/2010.11148).
+            Default: 0.0.
     """
 ```
 

@@ -33,6 +33,7 @@ REGISTER_OP("TransducerLoss")
 .Input("frames_lengths: int32")
 .Input("labels_lengths: int32")
 .Attr("blank: int = 0")
+.Attr("fastemit_lambda: float = 0.0")
 .Output("costs: float32")
 .Output("grads: float32");
 
@@ -42,6 +43,7 @@ class TransducerLossOpBase : public tf::OpKernel {
  public:
   explicit TransducerLossOpBase(tf::OpKernelConstruction* ctx) : tf::OpKernel(ctx) {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("blank", &blank_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("fastemit_lambda", &fastemit_lambda_));
   }
 
   void Compute(tf::OpKernelContext* ctx) override {
@@ -135,7 +137,7 @@ class TransducerLossOpBase : public tf::OpKernel {
                                     log_probs_t.data(),
                                     grads.data(), costs.data(),
                                     frames_lengths_t.data(), labels_lengths_t.data(),
-                                    N, T, U
+                                    N, T, U, fastemit_lambda_
                                    );
     } else {
       status = run_warp_rnnt(cuda_stream,
@@ -144,7 +146,7 @@ class TransducerLossOpBase : public tf::OpKernel {
                              labels_t.data(), log_probs_t.data(),
                              grads.data(), costs.data(),
                              frames_lengths_t.data(), labels_lengths_t.data(),
-                             N, T, U, V, blank_
+                             N, T, U, V, blank_, fastemit_lambda_
                             );
     }
 
@@ -155,6 +157,7 @@ class TransducerLossOpBase : public tf::OpKernel {
 
  private:
   int blank_;
+  float fastemit_lambda_;
   TF_DISALLOW_COPY_AND_ASSIGN(TransducerLossOpBase);
 };
 

@@ -290,7 +290,7 @@ void kernel_grads_blank(float *grads, const float *alphas, const float *betas,
 __global__
 void kernel_grads_label(float *grads, const float *alphas, const float *betas,
                         const float *log_probs,
-                        const int *xn, const int *yn, int T, int U) {
+                        const int *xn, const int *yn, int T, int U, float fastemit_lambda) {
 
     unsigned int d = threadIdx.x;
     unsigned int g = blockIdx.x;
@@ -314,6 +314,10 @@ void kernel_grads_label(float *grads, const float *alphas, const float *betas,
     unsigned int index = idx4(n, t, u, 1, T, U, 2);
 
     a = expf(a + log_probs[index] - betas[idx3(n, 0, 0, T, U)]);
+
+    // apply FastEmit regularization
+    // https://arxiv.org/abs/2010.11148
+    a = (1. + fastemit_lambda) * a;
 
     grads[index] = -a;
 }
@@ -358,7 +362,7 @@ void kernel_fill_costs(float *costs, float *grads, const float *alphas, const fl
 
 rnntStatus_t run_warp_rnnt_gather(cudaStream_t stream, unsigned int *counts, float *alphas, float *betas,
                                   const float *log_probs, float *grads, float *costs,
-                                  const int *xn, const int *yn, int N, int T, int U) {
+                                  const int *xn, const int *yn, int N, int T, int U, float fastemit_lambda) {
 
     dim3 threads1(W, 2);
     dim3 blocks1((T + W - 1) / W, U, N);
@@ -374,7 +378,7 @@ rnntStatus_t run_warp_rnnt_gather(cudaStream_t stream, unsigned int *counts, flo
     if (U > 1) {
 
         dim3 blocks3((T + G - 1) / G, U - 1, N);
-        kernel_grads_label <<<blocks3, G, 0, stream>>> (grads, alphas, betas, log_probs, xn, yn, T, U);
+        kernel_grads_label <<<blocks3, G, 0, stream>>> (grads, alphas, betas, log_probs, xn, yn, T, U, fastemit_lambda);
         if (cudaGetLastError() != cudaSuccess)
             return RNNT_STATUS_GRADS_LABEL_FAILED;
     }

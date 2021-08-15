@@ -9,18 +9,19 @@ __version__ = get_distribution('warp_rnnt').version
 class RNNTLoss(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0):
+    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0, fastemit_lambda=0.0):
         costs, ctx.grads = core.rnnt_loss(
             xs=log_probs, ys=labels,
             xn=frames_lengths, yn=labels_lengths,
             blank=blank,
+            fastemit_lambda=fastemit_lambda,
         )
         return costs
 
     @staticmethod
     def backward(ctx, grads_output):
         grads_output = grads_output.view(-1, 1, 1, 1).to(ctx.grads)
-        return ctx.grads.mul_(grads_output), None, None, None, None, None
+        return ctx.grads.mul_(grads_output), None, None, None, None, None, None
 
 
 def rnnt_loss(log_probs: torch.FloatTensor,
@@ -30,7 +31,8 @@ def rnnt_loss(log_probs: torch.FloatTensor,
               average_frames: bool = False,
               reduction: Optional[AnyStr] = None,
               blank: int = 0,
-              gather: bool = False) -> torch.Tensor:
+              gather: bool = False,
+              fastemit_lambda: float = 0.0) -> torch.Tensor:
 
     """The CUDA-Warp RNN-Transducer loss.
 
@@ -54,6 +56,9 @@ def rnnt_loss(log_probs: torch.FloatTensor,
             Default: 0.
         gather (bool, optional): Reduce memory consumption.
             Default: False.
+        fastemit_lambda (float, optional): FastEmit regularization
+            (https://arxiv.org/abs/2010.11148).
+            Default: 0.0.
     """
 
     assert average_frames is None or isinstance(average_frames, bool)
@@ -77,7 +82,7 @@ def rnnt_loss(log_probs: torch.FloatTensor,
 
         blank = -1
 
-    costs = RNNTLoss.apply(log_probs, labels, frames_lengths, labels_lengths, blank)
+    costs = RNNTLoss.apply(log_probs, labels, frames_lengths, labels_lengths, blank, fastemit_lambda)
 
     if average_frames:
         costs = costs / frames_lengths.to(log_probs)
