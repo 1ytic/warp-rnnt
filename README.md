@@ -22,31 +22,28 @@ The similar procedure for the backward pass runs in parallel.
 
 
 ## Performance
-[Benchmarked](pytorch_binding/benchmark.py) on a GeForce GTX 1080 Ti GPU, Intel i7-8700 CPU @ 3.20GHz.
+[Benchmarked](pytorch_binding/benchmark.py) on a GeForce RTX 2070 Super GPU, Intel i7-10875H CPU @ 2.30GHz.
 
-|                         |    warp_rnnt    | [warprnnt_pytorch](https://github.com/HawkAaron/warp-transducer/tree/master/pytorch_binding) | [transducer](https://github.com/awni/transducer) |
-| :---------------------- | ------------------: | ------------------: | ------------------: |
+|                         |    warp_rnnt (gather=False)    |    warp_rnnt (gather=True)    | [warprnnt_pytorch](https://github.com/HawkAaron/warp-transducer/tree/master/pytorch_binding) | [transducer (CPU)](https://github.com/awni/transducer) |
+| :---------------------- | ------------------: | ------------------: | ------------------: | ------------------: |
 |  **T=150, U=40, V=28**  | 
-|         N=1             |       0.07 ms       |       0.68 ms       |       1.28 ms       |
-|         N=16            |       0.33 ms       |       1.80 ms       |       6.15 ms       |
-|         N=32            |       0.35 ms       |       3.39 ms       |      12.72 ms       |
-|         N=64            |       0.56 ms       |       6.11 ms       |      23.73 ms       |
-|         N=128           |       0.60 ms       |       9.22 ms       |      47.93 ms       |
+|         N=1             |       0.58 ms       |       0.54 ms       |       0.63 ms       |       1.28 ms       |
+|         N=16            |       1.84 ms       |       1.72 ms       |       1.85 ms       |       6.15 ms       |
+|         N=32            |       3.20 ms       |       2.94 ms       |       2.97 ms       |      12.72 ms       |
+|         N=64            |       6.06 ms       |       5.54 ms       |       5.23 ms       |      23.73 ms       |
+|         N=128           |      11.77 ms       |      10.74 ms       |       9.99 ms       |      47.93 ms       |
 | **T=150, U=20, V=5000** |
-|         N=1             |       0.46 ms       |       2.14 ms       |      21.18 ms       |
-|         N=16            |       1.42 ms       |      21.24 ms       |     240.11 ms       |
-|         N=32            |       2.51 ms       |      38.26 ms       |     490.66 ms       |
-|         N=64            |    out-of-memory    |      75.54 ms       |     944.73 ms       |
-|         N=128           |    out-of-memory    |    out-of-memory    |    1894.93 ms       |
+|         N=1             |       1.36 ms       |       0.80 ms       |       1.74 ms       |      21.18 ms       |
+|         N=16            |      13.77 ms       |       6.24 ms       |      16.20 ms       |     240.11 ms       |
+|         N=32            |    out-of-memory    |      12.35 ms       |      31.64 ms       |     490.66 ms       |
+|         N=64            |    out-of-memory    |    out-of-memory    |    out-of-memory    |     944.73 ms       |
+|         N=128           |    out-of-memory    |    out-of-memory    |    out-of-memory    |    1894.93 ms       |
 | **T=1500, U=300, V=50** |
-|         N=1             |       0.60 ms       |      10.77 ms       |     121.82 ms       |
-|         N=16            |       2.25 ms       |      97.69 ms       |     732.50 ms       |
-|         N=32            |       3.97 ms       |     184.73 ms       |    1448.54 ms       |
-|         N=64            |    out-of-memory    |     out-of-memory   |    2767.59 ms       |
+|         N=1             |       6.35 ms       |       4.99 ms       |      10.02 ms       |     121.82 ms       |
+|         N=16            |     104.80 ms       |      78.88 ms       |      76.66 ms       |     732.50 ms       |
+|         N=32            |    out-of-memory    |     157.86 ms       |     165.38 ms       |    1448.54 ms       |
+|         N=64            |    out-of-memory    |    out-of-memory    |     out-of-memory   |    2767.59 ms       |
 
-## TODO
-
-- Fix the original benchmarking methodology as mentioned in this issue [#9](../../issues/9)
 
 ## Note
 
@@ -54,7 +51,7 @@ The similar procedure for the backward pass runs in parallel.
 
 - In addition to alphas/betas arrays, counts array is allocated with shape (N, U * 2), which is used as a scheduling mechanism.
 
-- [core_gather.cu](core_gather.cu) is a slightly memory-efficient version that expects log_probs with the shape (N, T, U, 2) only for blank and labels values.
+- [core_gather.cu](core_gather.cu) is a memory-efficient version that expects log_probs with the shape (N, T, U, 2) only for blank and labels values. It shows excellent performance with a large vocabulary.
 
 - Do not expect that this implementation will greatly reduce the training time of RNN Transducer model. Probably, the main bottleneck will be a trainable joint network with an output (N, T, U, V).
 

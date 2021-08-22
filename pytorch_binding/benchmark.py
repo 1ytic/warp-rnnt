@@ -1,31 +1,12 @@
-import sys
+import argparse
 
 import torch
 import torch.nn.functional as F
 
-#from warp_rnnt import rnnt_loss as loss1
-#from warprnnt_pytorch import rnnt_loss as loss2
-from transducer.functions.transducer import Transducer
-
 from timeit import default_timer as timer
 
 
-def run_loss1(xs, ys, xn, yn):
-    xs = F.log_softmax(xs, -1)
-    return loss1(xs, ys, xn, yn)
-
-
-def run_loss2(xs, ys, xn, yn):
-    return loss2(xs, ys, xn, yn, reduction='none')
-
-
-def run_loss3(xs, ys, xn, yn):
-    xs = F.log_softmax(xs, -1)
-    fn = Transducer(blank_label=0)
-    return fn(xs, ys.view(-1), xn, yn)
-
-
-def run_benchmark(loss, E, N, T, U, V):
+def run_benchmark(loss, E, N, T, U, V, random_length=False, device="cuda"):
 
     torch.manual_seed(N)
 
@@ -36,44 +17,88 @@ def run_benchmark(loss, E, N, T, U, V):
         xs = torch.randn((N, T, U, V), dtype=torch.float32, requires_grad=True)
         ys = torch.randint(1, V, (N, U-1), dtype=torch.int)
 
-        #xn = torch.randint(T // 2, T+1, (N,), dtype=torch.int)
-        #yn = torch.randint(U // 2, U, (N,), dtype=torch.int)
-        #xn = xn + T - xn.max()
-        #yn = yn + U-1 - yn.max()
+        if random_length:
+            xn = torch.randint(T // 2, T+1, (N,), dtype=torch.int)
+            yn = torch.randint(U // 2, U, (N,), dtype=torch.int)
+            xn = xn + T - xn.max()
+            yn = yn + U-1 - yn.max()
+        else:
+            xn = torch.ones((N,), dtype=torch.int) * T
+            yn = torch.ones((N,), dtype=torch.int) * (U-1)
 
-        xn = torch.ones((N,), dtype=torch.int) * T
-        yn = torch.ones((N,), dtype=torch.int) * (U-1)
-
-        #xs = xs.cuda()
-        #ys = ys.cuda()
-        #xn = xn.cuda()
-        #yn = yn.cuda()
+        if device == "cuda":
+            xs = xs.cuda()
+            ys = ys.cuda()
+            xn = xn.cuda()
+            yn = yn.cuda()
+            torch.cuda.synchronize()  # sync before start the timer
 
         t = timer()
 
         costs = loss(xs, ys, xn, yn)
 
+        if device == "cuda":
+            torch.cuda.synchronize()  # sync before stop the timer
+
         elapsed_time += timer() - t
 
         del xs, ys, xn, yn, costs
 
-        torch.cuda.empty_cache()
+        if device == "cuda":
+            torch.cuda.empty_cache()
 
-    elapsed_time = elapsed_time * 1000 / E
-
-    print("%d: %.2f" % (N, elapsed_time))
-
-
-def run_benchmark_safe(loss, E, N, T, U, V):
-    try:
-        run_benchmark(loss, E, N, T, U, V)
-    except RuntimeError:
-        exc_type, value, traceback = sys.exc_info()
-        print(value)
+    return elapsed_time * 1000 / E
 
 
-for n in [1, 16, 32, 64, 128]:
-    for loss in [run_loss3]:
-        #run_benchmark(loss, E=100, N=n, T=150, U=40, V=28)
-        #run_benchmark_safe(loss, E=10, N=n, T=150, U=20, V=5000)
-        run_benchmark_safe(loss, E=10, N=n, T=1500, U=300, V=50)
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Benchmark RNN-T loss implementation")
+    parser.add_argument("--loss", type=str, required=True, help="The target implementation")
+    parser.add_argument("--device", type=str, required=False, help="The target implementation", default="cuda")
+    parser.add_argument("--random_length", type=bool, required=False, help="The random length", default=False)
+
+    args = parser.parse_args()
+
+    if args.loss == "warp-rnnt":
+        from warp_rnnt import rnnt_loss
+        def run_loss(xs, ys, xn, yn):
+            xs = F.log_softmax(xs, -1)
+            return rnnt_loss(F.log_softmax(xs, -1), ys, xn, yn, gather=False)
+
+    elif args.loss == "warp-rnnt-gather":
+        from warp_rnnt import rnnt_loss
+        def run_loss(xs, ys, xn, yn):
+            return rnnt_loss(F.log_softmax(xs, -1), ys, xn, yn, gather=True)
+
+    elif args.loss == "warprnnt_pytorch":
+        from warprnnt_pytorch import rnnt_loss
+        def run_loss(xs, ys, xn, yn):
+            return rnnt_loss(xs, ys, xn, yn, reduction='none')
+
+    elif args.loss == "Transducer":
+        from transducer import Transducer
+        fn = Transducer(blank_label=0)
+        def run_loss(xs, ys, xn, yn):
+            return fn.apply(F.log_softmax(xs, dim=-1), ys.view(-1), xn, yn)
+    else:
+        raise ValueError("Unknown RNN-T loss")
+
+    for E, T, U, V in [(100, 150, 40, 28), (50, 150, 20, 5000), (10, 1500, 300, 50)]:
+        for N in [1, 16, 32, 64, 128]:
+            print(f"T={T}\tU={U}\tV={V}\tN={N}\t", end="")
+            try:
+                time = run_benchmark(
+                    run_loss,
+                    E=E,
+                    N=N,
+                    T=T,
+                    U=U,
+                    V=V,
+                    random_length=args.random_length,
+                    device=args.device,
+                )
+                print(f"time={time:.2f}")
+            except RuntimeError as e:
+                print(f"error={e}")
+                break
+        print()
