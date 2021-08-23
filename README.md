@@ -22,28 +22,37 @@ The similar procedure for the backward pass runs in parallel.
 
 
 ## Performance
-[Benchmarked](pytorch_binding/benchmark.py) on a GeForce RTX 2070 Super GPU, Intel i7-10875H CPU @ 2.30GHz.
+NVIDIA Profiler shows advantage of the _warp_ implementation over the _non-warp_ implementation.
+
+This warp implementation:
+![](warp-rnnt.nvvp.png)
+
+Non-warp implementation [warp-transducer](https://github.com/HawkAaron/warp-transducer):
+![](warp-transducer.nvvp.png)
+
+Unfortunately, in practice this advantage disappears because the memory operations takes much longer. Especially if you synchronize memory on each iteration.
 
 |                         |    warp_rnnt (gather=False)    |    warp_rnnt (gather=True)    | [warprnnt_pytorch](https://github.com/HawkAaron/warp-transducer/tree/master/pytorch_binding) | [transducer (CPU)](https://github.com/awni/transducer) |
 | :---------------------- | ------------------: | ------------------: | ------------------: | ------------------: |
 |  **T=150, U=40, V=28**  | 
-|         N=1             |       0.58 ms       |       0.54 ms       |       0.63 ms       |       1.28 ms       |
-|         N=16            |       1.84 ms       |       1.72 ms       |       1.85 ms       |       6.15 ms       |
-|         N=32            |       3.20 ms       |       2.94 ms       |       2.97 ms       |      12.72 ms       |
-|         N=64            |       6.06 ms       |       5.54 ms       |       5.23 ms       |      23.73 ms       |
-|         N=128           |      11.77 ms       |      10.74 ms       |       9.99 ms       |      47.93 ms       |
+|         N=1             |       0.50 ms       |       0.54 ms       |       0.63 ms       |       1.28 ms       |
+|         N=16            |       1.79 ms       |       1.72 ms       |       1.85 ms       |       6.15 ms       |
+|         N=32            |       3.09 ms       |       2.94 ms       |       2.97 ms       |      12.72 ms       |
+|         N=64            |       5.83 ms       |       5.54 ms       |       5.23 ms       |      23.73 ms       |
+|         N=128           |      11.30 ms       |      10.74 ms       |       9.99 ms       |      47.93 ms       |
 | **T=150, U=20, V=5000** |
-|         N=1             |       1.36 ms       |       0.80 ms       |       1.74 ms       |      21.18 ms       |
-|         N=16            |      13.77 ms       |       6.24 ms       |      16.20 ms       |     240.11 ms       |
-|         N=32            |    out-of-memory    |      12.35 ms       |      31.64 ms       |     490.66 ms       |
+|         N=1             |       0.95 ms       |       0.80 ms       |       1.74 ms       |      21.18 ms       |
+|         N=16            |       8.74 ms       |       6.24 ms       |      16.20 ms       |     240.11 ms       |
+|         N=32            |      17.26 ms       |      12.35 ms       |      31.64 ms       |     490.66 ms       |
 |         N=64            |    out-of-memory    |    out-of-memory    |    out-of-memory    |     944.73 ms       |
 |         N=128           |    out-of-memory    |    out-of-memory    |    out-of-memory    |    1894.93 ms       |
 | **T=1500, U=300, V=50** |
-|         N=1             |       6.35 ms       |       4.99 ms       |      10.02 ms       |     121.82 ms       |
-|         N=16            |     104.80 ms       |      78.88 ms       |      76.66 ms       |     732.50 ms       |
+|         N=1             |       5.89 ms       |       4.99 ms       |      10.02 ms       |     121.82 ms       |
+|         N=16            |      95.46 ms       |      78.88 ms       |      76.66 ms       |     732.50 ms       |
 |         N=32            |    out-of-memory    |     157.86 ms       |     165.38 ms       |    1448.54 ms       |
 |         N=64            |    out-of-memory    |    out-of-memory    |     out-of-memory   |    2767.59 ms       |
 
+[Benchmarked](pytorch_binding/benchmark.py) on a GeForce RTX 2070 Super GPU, Intel i7-10875H CPU @ 2.30GHz.
 
 ## Note
 

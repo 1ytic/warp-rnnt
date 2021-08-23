@@ -62,7 +62,6 @@ if __name__ == "__main__":
     if args.loss == "warp-rnnt":
         from warp_rnnt import rnnt_loss
         def run_loss(xs, ys, xn, yn):
-            xs = F.log_softmax(xs, -1)
             return rnnt_loss(F.log_softmax(xs, -1), ys, xn, yn, gather=False)
 
     elif args.loss == "warp-rnnt-gather":
