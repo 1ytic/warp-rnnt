@@ -35,6 +35,7 @@ __forceinline__ __device__ static float log_sum_exp(float a, float b) {
     //if (diff > -42) {
         maximum += log1pf(expf(diff));
     //}
+    // log(exp(a)+exp(b)) = log(exp(a)(1+exp(b-a))) = a + log(1+exp(b-a)) = a + log1pf(expf(b-a))
     return maximum;
 }
 

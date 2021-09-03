@@ -2,7 +2,7 @@ import torch
 import unittest
 import numpy as np
 import warp_rnnt._C as core
-
+from typing import Tuple
 
 xs = torch.tensor([], dtype=torch.float32)
 ys = torch.tensor([], dtype=torch.int)
@@ -10,10 +10,28 @@ xn = torch.tensor([], dtype=torch.int)
 yn = torch.tensor([], dtype=torch.int)
 
 
+def compactTensor(xs: torch.Tensor, ys: torch.Tensor, xn: torch.Tensor, yn: torch.Tensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+
+    assert xs.dim() == 4
+    assert ys.dim() == 2
+
+    N, T, Up, V = xs.size()
+    assert ys.size() == (N, Up-1)
+    assert xn.size(0) == N
+    assert yn.size(0) == N
+
+    _ys = torch.cat([ys[i, :yn[i]] for i in range(N)])
+    _xs = [xs[i, :xn[i], :yn[i]+1, :].contiguous() for i in range(N)]
+    _xs = torch.cat([x.view(-1, V) for x in _xs], dim=0)
+
+    return _xs, _ys
+
+
 class RNNTLossTest(unittest.TestCase):
 
     def test_contiguous(self):
-        xs = torch.tensor(np.zeros((4, 3, 2, 1)), dtype=torch.float32).transpose(0, 1)
+        xs = torch.tensor(np.zeros((4, 3, 2, 1)),
+                          dtype=torch.float32).transpose(0, 1)
         with self.assertRaisesRegex(RuntimeError, "xs must be contiguous"):
             core.rnnt_loss(xs, ys, xn, yn)
 
@@ -57,7 +75,16 @@ class RNNTLossTest(unittest.TestCase):
                [0.0, 0.0, -1., 0.0, 0.0],
                [-1., 0.0, 0.0, 0.0, 0.0]]]])
 
-        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads)
+
+        # Test compact mode
+        _xs, _ys = compactTensor(xs, ys, xn, yn)
+        costs, grads = core.rnnt_loss_compact(
+            _xs.cuda(), _ys.cuda(), xn.cuda(), yn.cuda())
+        np.testing.assert_almost_equal(costs.item(), expected_cost, decimal=6)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads.reshape(3, 5))
 
     def test_one_to_empty(self):
 
@@ -79,7 +106,16 @@ class RNNTLossTest(unittest.TestCase):
 
         expected_grads = np.array([[[[-1., 0.0, 0.0, 0.0, 0.0]]]])
 
-        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads)
+
+        # Test compact mode
+        _xs, _ys = compactTensor(xs, ys, xn, yn)
+        costs, grads = core.rnnt_loss_compact(
+            _xs.cuda(), _ys.cuda(), xn.cuda(), yn.cuda())
+        np.testing.assert_almost_equal(costs.item(), expected_cost, decimal=6)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads.reshape(1, 5))
 
     def test_forward_single(self):
 
@@ -114,7 +150,16 @@ class RNNTLossTest(unittest.TestCase):
                [0.0, 0.0, -0.6163961438119995, 0.0, 0.0],
                [-0.9999999999999991, 0.0, 0.0, 0.0, 0.0]]]])
 
-        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads)
+
+        # Test compact mode
+        _xs, _ys = compactTensor(xs, ys, xn, yn)
+        costs, grads = core.rnnt_loss_compact(
+            _xs.cuda(), _ys.cuda(), xn.cuda(), yn.cuda())
+        np.testing.assert_almost_equal(costs.item(), expected_cost, decimal=6)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads.reshape(-1, 5))
 
     def test_forward_batch(self):
 
@@ -154,7 +199,8 @@ class RNNTLossTest(unittest.TestCase):
 
         expected_costs = np.array([4.495666773770733, 5.7367250428101615])
 
-        np.testing.assert_array_almost_equal(costs.cpu().numpy(), expected_costs, decimal=6)
+        np.testing.assert_array_almost_equal(
+            costs.cpu().numpy(), expected_costs, decimal=6)
 
         expected_grads = np.array([
 
@@ -179,7 +225,19 @@ class RNNTLossTest(unittest.TestCase):
               [-1.,         -0.,         -0.,         -0.,         -0.]]]
         ])
 
-        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads)
+
+        # Test compact mode
+        _xs, _ys = compactTensor(xs, ys, xn, yn)
+        costs, grads = core.rnnt_loss_compact(
+            _xs.cuda(), _ys.cuda(), xn.cuda(), yn.cuda())
+        np.testing.assert_array_almost_equal(
+            costs.cpu().numpy(), expected_costs, decimal=6)
+        expected_grads = np.concatenate(
+            [expected_grads[0, :2, :3, :].reshape(-1, 5), expected_grads[1, :3, :3, :].reshape(-1, 5)])
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads)
 
     def test_calls(self):
 
@@ -190,20 +248,25 @@ class RNNTLossTest(unittest.TestCase):
 
         for i in range(2):
 
-          rng = np.random.RandomState(i)
+            rng = np.random.RandomState(i)
 
-          xs = rng.randn(n, t, u, v)
-          xs = torch.tensor(xs, dtype=torch.float32)
-          xs = torch.nn.functional.log_softmax(xs, dim=-1)
+            xs = rng.randn(n, t, u, v)
+            xs = torch.tensor(xs, dtype=torch.float32)
+            xs = torch.nn.functional.log_softmax(xs, dim=-1)
 
-          ys = torch.tensor(rng.randint(1, v, (n, u-1)), dtype=torch.int)
+            ys = torch.tensor(rng.randint(1, v, (n, u-1)), dtype=torch.int)
 
-          xn = torch.tensor([t] * n, dtype=torch.int)
-          yn = torch.tensor(rng.randint(1, u, n), dtype=torch.int)
+            xn = torch.tensor([t] * n, dtype=torch.int)
+            yn = torch.tensor(rng.randint(1, u, n), dtype=torch.int)
 
-          costs, grads = core.rnnt_loss(
-            xs.cuda(), ys.cuda(),
-            xn.cuda(), yn.cuda())
+            costs, grads = core.rnnt_loss(
+                xs.cuda(), ys.cuda(),
+                xn.cuda(), yn.cuda())
+
+            # Test compact mode
+            _xs, _ys = compactTensor(xs, ys, xn, yn)
+            costs, grads = core.rnnt_loss_compact(
+                _xs.cuda(), _ys.cuda(), xn.cuda(), yn.cuda())
 
     def test_forward_single_gather(self, blank=0):
 
@@ -224,7 +287,8 @@ class RNNTLossTest(unittest.TestCase):
 
         N, T, U, V = xs.size()
 
-        index = torch.full([N, T, U, 2], blank, device=xs.device, dtype=torch.long)
+        index = torch.full([N, T, U, 2], blank,
+                           device=xs.device, dtype=torch.long)
 
         index[:, :, :U-1, 1] = ys.unsqueeze(dim=1)
 
@@ -246,7 +310,8 @@ class RNNTLossTest(unittest.TestCase):
                [0.0, -0.6163961438119995],
                [-0.9999999999999991, 0.0]]]])
 
-        np.testing.assert_array_almost_equal(grads.cpu().numpy(), expected_grads)
+        np.testing.assert_array_almost_equal(
+            grads.cpu().numpy(), expected_grads)
 
 
 if __name__ == "__main__":

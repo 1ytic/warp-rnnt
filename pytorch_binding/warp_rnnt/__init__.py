@@ -9,8 +9,12 @@ __version__ = get_distribution('warp_rnnt').version
 class RNNTLoss(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0, fastemit_lambda=0.0):
-        costs, ctx.grads = core.rnnt_loss(
+    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0, fastemit_lambda=0.0, compact=False):
+        if compact:
+            lossfn = core.rnnt_loss_compact
+        else:
+            lossfn = core.rnnt_loss
+        costs, ctx.grads = lossfn(
             xs=log_probs, ys=labels,
             xn=frames_lengths, yn=labels_lengths,
             blank=blank,
@@ -32,8 +36,8 @@ def rnnt_loss(log_probs: torch.FloatTensor,
               reduction: Optional[AnyStr] = None,
               blank: int = 0,
               gather: bool = False,
-              fastemit_lambda: float = 0.0) -> torch.Tensor:
-
+              fastemit_lambda: float = 0.0,
+              compact: bool = False) -> torch.Tensor:
     """The CUDA-Warp RNN-Transducer loss.
 
     Args:
@@ -71,18 +75,24 @@ def rnnt_loss(log_probs: torch.FloatTensor,
     assert not labels_lengths.requires_grad, "labels_lengths does not require gradients"
 
     if gather:
+        if compact:
+            blank = -(blank+1)  # cast [0, ) to ( , -1)
 
-        N, T, U, V = log_probs.size()
+        else:
 
-        index = torch.full([N, T, U, 2], blank, device=labels.device, dtype=torch.long)
+            N, T, U, V = log_probs.size()
 
-        index[:, :, :U-1, 1] = labels.unsqueeze(dim=1)
+            index = torch.full([N, T, U, 2], blank,
+                               device=labels.device, dtype=torch.long)
 
-        log_probs = log_probs.gather(dim=3, index=index)
+            index[:, :, :U-1, 1] = labels.unsqueeze(dim=1)
 
-        blank = -1
+            log_probs = log_probs.gather(dim=3, index=index)
 
-    costs = RNNTLoss.apply(log_probs, labels, frames_lengths, labels_lengths, blank, fastemit_lambda)
+            blank = -1
+
+    costs = RNNTLoss.apply(log_probs, labels, frames_lengths,
+                           labels_lengths, blank, fastemit_lambda, compact)
 
     if average_frames:
         costs = costs / frames_lengths.to(log_probs)

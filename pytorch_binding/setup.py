@@ -39,7 +39,8 @@ setup(
     ext_modules=[
         CUDAExtension(
             name="warp_rnnt._C",
-            sources=["core.cu", "core_gather.cu", "binding.cpp"]
+            sources=["core.cu", "core_gather.cu", "core_compact.cu",
+                     "core_compact_gather.cu", "gather.cu", "binding.cpp"]
         )
     ],
     cmdclass={"build_ext": BuildExtension},
