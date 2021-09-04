@@ -116,9 +116,10 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss(
     return std::make_tuple(costs, grads);
 }
 
-std::tuple<at::Tensor, at::Tensor> rnnt_loss_compact(
-    const at::Tensor &xs, const at::Tensor &ys,
-    const at::Tensor &xn, const at::Tensor &yn,
+// return (costs, grad, loc, blank)
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, int> rnnt_loss_compact_forward(
+    const torch::Tensor &xs, const torch::Tensor &ys,
+    const torch::Tensor &xn, const torch::Tensor &yn,
     const int blank, const float fastemit_lambda)
 {
     // Check contiguous
@@ -162,25 +163,18 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss_compact(
     memPref[0] = 0;
     labelPref[0] = 0;
 
-    at::TensorOptions buffer_opts(xs.device());
-    at::TensorOptions counts_opts(xs.device());
-    at::TensorOptions costs_opts(xs.device());
+    const auto device = xs.device();
+    // the negtive log likelihood
+    torch::Tensor costs = torch::empty({N}, torch::dtype(torch::kFloat32).device(device));
+    //  for maintain the execute status of forward/backward calculation
+    torch::Tensor counts = torch::zeros({ys.numel() * 2 + 2 * N}, torch::dtype(torch::kInt32).device(device));
+    // forward variable of RNN-T
+    torch::Tensor alphas = torch::empty({STU}, torch::dtype(torch::kFloat32).device(device));
+    // backward variable of RNN-T
+    torch::Tensor betas = torch::empty_like(alphas);
+    torch::Tensor grads;
 
-    counts_opts = counts_opts.dtype(at::ScalarType::Int);
-    buffer_opts = buffer_opts.dtype(at::ScalarType::Float);
-    costs_opts = costs_opts.dtype(at::ScalarType::Float);
-
-    auto counts_shape = {ys.numel() * 2 + 2 * N}; // 2 * \sum_{(U_i+1)}
-    auto buffer_shape = {STU};                    // \sum_{T_i*(U_i+1)}
-    auto costs_shape = {N};
-
-    torch::Tensor costs = torch::empty(costs_shape, costs_opts); // the negtive log likelihood
-    at::Tensor counts = at::zeros(counts_shape, counts_opts);    //  for maintain the execute status of forward/backward calculation
-    at::Tensor alphas = at::empty(buffer_shape, buffer_opts);    // forward variable of RNN-T
-    at::Tensor betas = at::empty(buffer_shape, buffer_opts);     // backward variable of RNN-T
-    at::Tensor grads;
-
-    auto stream = at::cuda::getCurrentCUDAStream(xs.device().index());
+    auto stream = c10::cuda::getCurrentCUDAStream(device.index());
 
     rnntStatus_t status;
 
@@ -189,20 +183,18 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss_compact(
         // gather mode
         int real_blank = (-1) - blank;
 
-        at::TensorOptions gather_xs_opts(xs.device());
-        gather_xs_opts = gather_xs_opts.dtype(at::ScalarType::Float);
-
-        auto gather_xs_shape = {STU, 2L}; // (\sum_{T_i*(U_i+1)}, 2)
-        at::Tensor gather_xs = at::empty(gather_xs_shape, gather_xs_opts);
+        torch::Tensor gather_xs = torch::empty({STU, 2L}, torch::dtype(torch::kFloat32).device(device));
+        torch::Tensor loc = torch::empty({STU}, torch::dtype(torch::kInt64).device(device));
 
         status = run_gather(stream, xs.data_ptr<float>(), ys.data_ptr<int>(),
                             (unsigned int *)xn.data_ptr<int>(), (unsigned int *)yn.data_ptr<int>(),
-                            gather_xs.data_ptr<float>(), (unsigned int *)memPref.data_ptr<int>(), (unsigned int *)labelPref.data_ptr<int>(),
+                            gather_xs.data_ptr<float>(), loc.data_ptr<long>(),
+                            (unsigned int *)memPref.data_ptr<int>(), (unsigned int *)labelPref.data_ptr<int>(),
                             N, Tm, Um, V, real_blank);
 
         TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "gather status " + std::to_string(status));
 
-        grads = at::zeros_like(gather_xs);
+        grads = torch::zeros_like(gather_xs);
 
         status = run_warp_rnnt_compact_gather(stream,
                                               (unsigned int *)counts.data_ptr<int>(),
@@ -212,10 +204,13 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss_compact(
                                               (unsigned int *)xn.data_ptr<int>(), (unsigned int *)yn.data_ptr<int>(),
                                               (unsigned int *)memPref.data_ptr<int>(), (unsigned int *)labelPref.data_ptr<int>(),
                                               N, Tm, Um, fastemit_lambda);
+        TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "rnnt_loss status " + std::to_string(status));
+
+        return std::make_tuple(costs, grads, loc, blank);
     }
     else
     {
-        grads = at::zeros_like(xs);
+        grads = torch::zeros_like(xs);
         memPref *= V;
         status = run_warp_rnnt_compact(stream,
                                        (unsigned int *)counts.data_ptr<int>(),
@@ -225,11 +220,65 @@ std::tuple<at::Tensor, at::Tensor> rnnt_loss_compact(
                                        xn.data_ptr<int>(), yn.data_ptr<int>(),
                                        memPref.data_ptr<int>(), labelPref.data_ptr<int>(),
                                        N, Tm, Um, V, blank, fastemit_lambda);
+        TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "rnnt_loss status " + std::to_string(status));
+
+        // non gather mode, only (costs, grad) is useful.
+        return std::make_tuple(costs, grads, grads, blank);
     }
+}
 
-    TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "rnnt_loss status " + std::to_string(status));
+torch::Tensor rnnt_loss_compact_backward(
+    const torch::Tensor &grad_cost, const torch::Tensor &grad, const torch::Tensor &cumSum,
+    const torch::Tensor &loc, long V, int blank)
+{
+    // Check contiguous
+    CHECK_CONTIGUOUS(grad_cost);
+    CHECK_CONTIGUOUS(grad);
+    // Check types
+    CHECK_FLOAT(grad_cost);
+    CHECK_FLOAT(grad);
+    // Check device
+    CHECK_CUDA(grad_cost);
+    CHECK_CUDA(grad);
+    // Check number of dimensions and elements
+    TORCH_CHECK(grad_cost.dim() == 1, "grad_cost must have 1 dimensions") // (N,)
+    TORCH_CHECK(grad.dim() == 2, "grad must have 2 dimensions")           // (STU, 2)
 
-    return std::make_tuple(costs, grads);
+    const auto N = grad_cost.size(0);
+    const auto STU = grad.size(0);
+
+    auto stream = c10::cuda::getCurrentCUDAStream(grad_cost.device().index());
+    rnntStatus_t status;
+
+    const auto device = grad_cost.device();
+
+    if (blank < 0)
+    {
+        CHECK_CONTIGUOUS(loc);
+        TORCH_CHECK(loc.scalar_type() == at::ScalarType::Long, "loc must be a Long tensor");
+        CHECK_CUDA(loc);
+        TORCH_CHECK(grad.size(0) == loc.size(0), " grad and loc must be equal in dim=0")
+
+        int real_blank = -1 - blank;
+
+        torch::Tensor scatter_grad = torch::zeros({STU, V}, torch::dtype(torch::kFloat32).device(device));
+
+        status = run_scatter_grad(stream, grad_cost.data_ptr<float>(), grad.data_ptr<float>(),
+                                  loc.data_ptr<long>(), (unsigned int *)cumSum.data_ptr<int>(), scatter_grad.data_ptr<float>(),
+                                  STU, N, V, real_blank);
+
+        TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "scatter status " + std::to_string(status));
+        return scatter_grad;
+    }
+    else
+    {
+
+        status = run_backward_compact(stream, grad_cost.data_ptr<float>(), grad.data_ptr<float>(),
+                                      (unsigned int *)cumSum.data_ptr<int>(), STU, N, V);
+        TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "grad accum status " + std::to_string(status));
+
+        return grad;
+    }
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
@@ -246,8 +295,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         pybind11::arg("fastemit_lambda") = 0.0);
 
     m.def(
-        "rnnt_loss_compact",
-        &rnnt_loss_compact,
+        "rnnt_loss_compact_forward",
+        &rnnt_loss_compact_forward,
         "CUDA-Warp RNN-Transducer loss with compact memory layout",
         pybind11::arg("xs"),
         pybind11::arg("ys"),
@@ -255,4 +304,15 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         pybind11::arg("yn"),
         pybind11::arg("blank") = 0,
         pybind11::arg("fastemit_lambda") = 0.0);
+
+    m.def(
+        "rnnt_loss_compact_backward",
+        &rnnt_loss_compact_backward,
+        "Compact RNN-T loss backward",
+        pybind11::arg("grad_cost"),
+        pybind11::arg("grad"),
+        pybind11::arg("cumSum"),
+        pybind11::arg("loc"),
+        pybind11::arg("V"),
+        pybind11::arg("blank"));
 }

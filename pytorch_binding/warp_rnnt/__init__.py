@@ -9,12 +9,8 @@ __version__ = get_distribution('warp_rnnt').version
 class RNNTLoss(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0, fastemit_lambda=0.0, compact=False):
-        if compact:
-            lossfn = core.rnnt_loss_compact
-        else:
-            lossfn = core.rnnt_loss
-        costs, ctx.grads = lossfn(
+    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0, fastemit_lambda=0.0):
+        costs, ctx.grads = core.rnnt_loss(
             xs=log_probs, ys=labels,
             xn=frames_lengths, yn=labels_lengths,
             blank=blank,
@@ -25,7 +21,29 @@ class RNNTLoss(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grads_output):
         grads_output = grads_output.view(-1, 1, 1, 1).to(ctx.grads)
-        return ctx.grads.mul_(grads_output), None, None, None, None, None, None
+        return ctx.grads.mul_(grads_output), None, None, None, None, None
+
+
+class RNNTLossCompact(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0, fastemit_lambda=0.0):
+        costs, ctx.grads, ctx.loc, ctx.blank = core.rnnt_loss_compact_forward(
+            xs=log_probs, ys=labels,
+            xn=frames_lengths, yn=labels_lengths,
+            blank=blank,
+            fastemit_lambda=fastemit_lambda,
+        )
+        cumSum = torch.cumsum(frames_lengths * (labels_lengths+1), dim=0)
+        ctx.cumSum = cumSum.to(torch.int32)
+        ctx.V = log_probs.size(-1)
+        return costs
+
+    @staticmethod
+    def backward(ctx, grads_output):
+        grads_input = core.rnnt_loss_compact_backward(
+            grads_output, ctx.grads, ctx.cumSum, ctx.loc, ctx.V, ctx.blank)
+        return grads_input, None, None, None, None, None
 
 
 def rnnt_loss(log_probs: torch.FloatTensor,
@@ -91,8 +109,12 @@ def rnnt_loss(log_probs: torch.FloatTensor,
 
             blank = -1
 
-    costs = RNNTLoss.apply(log_probs, labels, frames_lengths,
-                           labels_lengths, blank, fastemit_lambda, compact)
+    if compact:
+        costs = RNNTLossCompact.apply(log_probs, labels, frames_lengths,
+                                      labels_lengths, blank, fastemit_lambda)
+    else:
+        costs = RNNTLoss.apply(log_probs, labels, frames_lengths,
+                               labels_lengths, blank, fastemit_lambda)
 
     if average_frames:
         costs = costs / frames_lengths.to(log_probs)

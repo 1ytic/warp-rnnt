@@ -35,9 +35,18 @@ extern "C"
                                               const float *log_probs, float *grads, float *costs,
                                               const unsigned int *xn, const unsigned int *yn, const unsigned int *memPref, const unsigned int *labelPref,
                                               unsigned int N, unsigned int T, unsigned int U, float fastemit_lambda);
+
     rnntStatus_t run_gather(cudaStream_t stream, const float *xs, const int *ys, const unsigned int *xn, const unsigned int *yn,
-                            float *gather_xs, const unsigned int *memPref, const unsigned int *labelPref,
-                            unsigned int N, unsigned int T, unsigned int U, unsigned int V, int blank);
+                            float *gather_xs, long *loc,
+                            const unsigned int *memPref, const unsigned int *labelPref,
+                            unsigned int N, unsigned int T, unsigned int U, unsigned int V, unsigned int blank);
+
+    rnntStatus_t run_scatter_grad(cudaStream_t stream, const float *grad_cost, const float *gather_grad,
+                                  const long *loc, const unsigned int *cumSum,
+                                  float *grad, unsigned int STU, unsigned int N, unsigned int V, unsigned int blank);
+
+    rnntStatus_t run_backward_compact(cudaStream_t stream, const float *grad_cost, float *grad,
+                                      const unsigned int *cumSum, unsigned int STU, unsigned N, unsigned int V);
 
 #ifdef __cplusplus
 }

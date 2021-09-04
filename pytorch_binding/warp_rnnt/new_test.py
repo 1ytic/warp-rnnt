@@ -29,9 +29,9 @@ def gather(log_probs: torch.Tensor, labels: torch.Tensor, frames_lengths, labels
 
 
 def test_calls():
-    n = 6
-    t = 15
-    u = 4
+    n = 3
+    t = 5
+    u = 2
     v = 3
     for i in range(1):
         torch.manual_seed(i)
@@ -53,14 +53,27 @@ def test_calls():
         print(yn)
         print(xs.size())
         print(ys)
-        costs, grads = core.rnnt_loss_compact(xs, ys, xn, yn)
-        print(costs)
-        # print(grads)
+        _costs, _grads, _, _ = core.rnnt_loss_compact_forward(xs, ys, xn, yn)
+        print(_costs)
 
-        # xs = gather(xs, ys, xn, yn)
-        costs, grads = core.rnnt_loss_compact(xs, ys, xn, yn, -1)
+        costs, grads, loc, blank = core.rnnt_loss_compact_forward(
+            xs, ys, xn, yn, -1)
         print(costs)
-        # print(grads)
+
+        cumSum = torch.cumsum(xn * (yn+1), dim=0)
+        real_grads = core.rnnt_loss_compact_backward(torch.ones_like(_costs),
+                                                     _grads, cumSum.to(torch.int32), _grads, xs.size(-1), 0)
+
+        real_grads_gather = core.rnnt_loss_compact_backward(torch.ones_like(costs),
+                                                            grads, cumSum.to(torch.int32), loc, xs.size(-1), blank)
+        print("Backward correctness of rnn-t compact:",
+              torch.all(real_grads == _grads).item())
+        print("Backward correctness of rnn-t compact gather:",
+              torch.all(real_grads_gather == _grads).item())
+
+        # print(real_grads)
+        print(grads)
+        print(real_grads_gather)
 
 
 if __name__ == "__main__":
