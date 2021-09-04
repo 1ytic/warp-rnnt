@@ -184,7 +184,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, int> rnnt_loss_compact_f
         int real_blank = (-1) - blank;
 
         torch::Tensor gather_xs = torch::empty({STU, 2L}, torch::dtype(torch::kFloat32).device(device));
-        torch::Tensor loc = torch::empty({STU}, torch::dtype(torch::kInt64).device(device));
+        torch::Tensor loc = torch::zeros({STU}, torch::dtype(torch::kInt64).device(device));
 
         status = run_gather(stream, xs.data_ptr<float>(), ys.data_ptr<int>(),
                             (unsigned int *)xn.data_ptr<int>(), (unsigned int *)yn.data_ptr<int>(),

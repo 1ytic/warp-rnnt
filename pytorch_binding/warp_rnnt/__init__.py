@@ -28,21 +28,24 @@ class RNNTLossCompact(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, log_probs, labels, frames_lengths, labels_lengths, blank=0, fastemit_lambda=0.0):
-        costs, ctx.grads, ctx.loc, ctx.blank = core.rnnt_loss_compact_forward(
+        costs, grads, loc, blank = core.rnnt_loss_compact_forward(
             xs=log_probs, ys=labels,
             xn=frames_lengths, yn=labels_lengths,
             blank=blank,
             fastemit_lambda=fastemit_lambda,
         )
-        cumSum = torch.cumsum(frames_lengths * (labels_lengths+1), dim=0)
-        ctx.cumSum = cumSum.to(torch.int32)
-        ctx.V = log_probs.size(-1)
+        cumSum = torch.cumsum(
+            frames_lengths * (labels_lengths+1), dim=0).to(torch.int32)
+        ctx.save_for_backward(grads, loc, cumSum, torch.tensor(
+            [blank, log_probs.size(-1)], device=log_probs.device))
         return costs
 
     @staticmethod
     def backward(ctx, grads_output):
+        grads, loc, cumSum, BlankV = ctx.saved_tensors
+
         grads_input = core.rnnt_loss_compact_backward(
-            grads_output, ctx.grads, ctx.cumSum, ctx.loc, ctx.V, ctx.blank)
+            grads_output, grads, cumSum, loc, BlankV[1], BlankV[0])
         return grads_input, None, None, None, None, None
 
 

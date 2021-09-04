@@ -1,0 +1,75 @@
+gather+compact
+T=150   U=40    V=28    N=1     time=1.57       memory=3
+T=150   U=40    V=28    N=16    time=1.63       memory=31
+T=150   U=40    V=28    N=32    time=2.75       memory=58
+T=150   U=40    V=28    N=64    time=4.24       memory=109
+T=150   U=40    V=28    N=128   time=8.93       memory=210
+
+T=150   U=20    V=5000  N=1     time=3.68       memory=243
+T=150   U=20    V=5000  N=16    time=23.01      memory=2777
+T=150   U=20    V=5000  N=32    time=44.04      memory=4957
+T=150   U=20    V=5000  N=64    OOM
+
+T=1500  U=300   V=50    N=1     time=10.69      memory=5857
+T=1500  U=300   V=50    N=16    time=78.97      memory=3850
+T=1500  U=300   V=50    N=32    OOM
+
+T=400   U=100   V=1024  N=1     time=9.11       memory=6206
+T=400   U=100   V=1024  N=16    OOM
+
+gather
+T=150   U=40    V=28    N=1     time=0.97       memory=3
+T=150   U=40    V=28    N=16    time=1.98       memory=44
+T=150   U=40    V=28    N=32    time=2.18       memory=88
+T=150   U=40    V=28    N=64    time=3.59       memory=179
+T=150   U=40    V=28    N=128   time=6.93       memory=350
+
+T=150   U=20    V=5000  N=1     time=2.92       memory=243
+T=150   U=20    V=5000  N=16    time=48.00      memory=3842
+T=150   U=20    V=5000  N=32    time=106.21     memory=7685
+T=150   U=20    V=5000  N=64    OOM
+
+T=1500  U=300   V=50    N=1     time=17.30      memory=7689
+T=1500  U=300   V=50    N=16    time=125.40     memory=5821
+T=1500  U=300   V=50    N=32    OOM
+
+T=400   U=100   V=1024  N=1     time=10.29      memory=6337
+T=400   U=100   V=1024  N=16    OOM
+
+naive
+T=150   U=40    V=28    N=1     time=0.84       memory=3
+T=150   U=40    V=28    N=16    time=1.47       memory=43
+T=150   U=40    V=28    N=32    time=2.09       memory=86
+T=150   U=40    V=28    N=64    time=3.64       memory=176
+T=150   U=40    V=28    N=128   time=6.93       memory=344
+
+T=150   U=20    V=5000  N=1     time=2.98       memory=243
+T=150   U=20    V=5000  N=16    time=56.87      memory=3842
+T=150   U=20    V=5000  N=32    time=129.25     memory=7684
+T=150   U=20    V=5000  N=64    OOM
+
+T=1500  U=300   V=50    N=1     time=19.07      memory=7680
+T=1500  U=300   V=50    N=16    time=148.71     memory=5763
+T=1500  U=300   V=50    N=32    OOM
+
+T=400   U=100   V=1024  N=1     time=11.37      memory=5760
+T=400   U=100   V=1024  N=16    OOM
+
+compact
+T=150   U=40    V=28    N=1     time=1.54       memory=3
+T=150   U=40    V=28    N=16    time=1.98       memory=31
+T=150   U=40    V=28    N=32    time=3.84       memory=58
+T=150   U=40    V=28    N=64    time=9.54       memory=109
+T=150   U=40    V=28    N=128   time=29.14      memory=210
+
+T=150   U=20    V=5000  N=1     time=3.71       memory=243
+T=150   U=20    V=5000  N=16    time=24.07      memory=2777
+T=150   U=20    V=5000  N=32    time=45.92      memory=4957
+T=150   U=20    V=5000  N=64    OOM
+
+T=1500  U=300   V=50    N=1     time=12.39      memory=5857
+T=1500  U=300   V=50    N=16    time=113.41     memory=3850
+T=1500  U=300   V=50    N=32    OOM
+
+T=400   U=100   V=1024  N=1     time=9.09       memory=6206
+T=400   U=100   V=1024  N=16    OOM

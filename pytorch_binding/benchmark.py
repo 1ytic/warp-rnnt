@@ -45,7 +45,9 @@ def run_benchmark(loss, E, N, T, U, V, random_length=False, device="cuda", compa
             yn = torch.ones((N,), dtype=torch.int, device=0) * (U-1)
 
         if compact:
-            xs, ys = compactTensor(xs, ys, xn, yn)
+            with torch.no_grad():
+                xs, ys = compactTensor(xs, ys, xn, yn)
+            xs.requires_grad = True
 
         if device == "cuda":
             xs = xs.cuda()

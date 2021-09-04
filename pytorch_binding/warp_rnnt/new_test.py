@@ -29,11 +29,12 @@ def gather(log_probs: torch.Tensor, labels: torch.Tensor, frames_lengths, labels
 
 
 def test_calls():
-    n = 3
+    n = 5
     t = 5
     u = 2
     v = 3
-    for i in range(1):
+    cnt = 0
+    for i in range(5):
         torch.manual_seed(i)
         xn = torch.tensor([t] * n, dtype=torch.int, device=0)
         yn = torch.randint(1, u, (n,), dtype=torch.int, device=0)
@@ -49,31 +50,31 @@ def test_calls():
         #                    [-0.5337, -1.5759, -1.5763]], dtype=torch.float32, device=0)
         # ys = torch.tensor([1], dtype=torch.int, device=0)
 
-        print(xn)
-        print(yn)
-        print(xs.size())
-        print(ys)
-        _costs, _grads, _, _ = core.rnnt_loss_compact_forward(xs, ys, xn, yn)
-        print(_costs)
-
-        costs, grads, loc, blank = core.rnnt_loss_compact_forward(
-            xs, ys, xn, yn, -1)
-        print(costs)
-
         cumSum = torch.cumsum(xn * (yn+1), dim=0)
+        _costs, _grads, _, _ = core.rnnt_loss_compact_forward(xs, ys, xn, yn)
         real_grads = core.rnnt_loss_compact_backward(torch.ones_like(_costs),
                                                      _grads, cumSum.to(torch.int32), _grads, xs.size(-1), 0)
 
+        costs, grads, loc, blank = core.rnnt_loss_compact_forward(
+            xs, ys, xn, yn, -1)
         real_grads_gather = core.rnnt_loss_compact_backward(torch.ones_like(costs),
                                                             grads, cumSum.to(torch.int32), loc, xs.size(-1), blank)
-        print("Backward correctness of rnn-t compact:",
-              torch.all(real_grads == _grads).item())
-        print("Backward correctness of rnn-t compact gather:",
-              torch.all(real_grads_gather == _grads).item())
 
-        # print(real_grads)
-        print(grads)
-        print(real_grads_gather)
+        if not torch.all(real_grads == real_grads_gather):
+            print(xn)
+            print(yn)
+            print(xs.size())
+            print(ys)
+            print(_costs)
+            print(costs)
+            print(_grads)
+            print(real_grads)
+            print(real_grads_gather)
+            break
+
+        cnt += torch.all(real_grads == real_grads_gather)
+
+    print("Gather mode produces {} same results as non-gather one.".format(cnt))
 
 
 if __name__ == "__main__":

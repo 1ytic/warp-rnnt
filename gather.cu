@@ -67,7 +67,6 @@ __global__ void kernel_fill_scatter_grad(const float *grad_cost, const float *ga
     if (i >= cumSum[n] || (n > 0 && i < cumSum[n - 1]))
         return;
 
-    // printf("(i, n)=(%d, %d)\n", i, n);
     if (threadIdx.y == 0)
     {
         // fill blank label grad
@@ -76,7 +75,8 @@ __global__ void kernel_fill_scatter_grad(const float *grad_cost, const float *ga
     else //if (threadIdx.y == 1)
     {
         // fill real label grad
-        scatter_grad[i * V + loc[i]] = gather_grad[(i << 1) + 1] * grad_cost[n];
+        if (loc[i] > 0)
+            scatter_grad[i * V + loc[i]] = gather_grad[(i << 1) + 1] * grad_cost[n];
     }
 }
 
@@ -89,7 +89,11 @@ rnntStatus_t run_scatter_grad(cudaStream_t stream, const float *grad_cost, const
     // scatter_grad (STU, V)
 
     dim3 threads1(WL, 2);
+
     dim3 blocks1((STU + WL - 1) / WL, N);
+
+    // STU/WL = (STU/WL)/W, W = (1 + (STU - 1)/WL)/W, W = (1 + (1 + (STU - 1)/WL) - 1)/W, W
+    // dim3 blocks1(1 + ((1 + (STU - 1) / WL) - 1) / W, W, N);
 
     kernel_fill_scatter_grad<<<blocks1, threads1, 0, stream>>>(grad_cost, gather_grad, loc, cumSum, scatter_grad, STU, V, blank);
     if (cudaGetLastError() != cudaSuccess)
