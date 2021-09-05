@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import warp_rnnt._C as core
+from warp_rnnt import rnnt_loss
 
 
 xs = torch.tensor([], dtype=torch.float32)
@@ -9,32 +10,49 @@ xn = torch.tensor([], dtype=torch.int)
 yn = torch.tensor([], dtype=torch.int)
 
 
-def gather(log_probs: torch.Tensor, labels: torch.Tensor, frames_lengths, labels_lengths, blank=0):
-    offset = 0      # offset
-    index = log_probs.new_full(
-        log_probs.size()[:-1] + (2,), fill_value=blank, dtype=torch.long)
-    cumsumLabel = labels_lengths.cumsum(dim=0, dtype=torch.long)
-    padded_labels = [torch.nn.functional.pad(
-        labels[cumsumLabel[i] - labels_lengths[i]:cumsumLabel[i]], (0, 1), value=blank) for i in range(labels_lengths.size(0))]
+def compactTensor(xs: torch.Tensor, ys: torch.Tensor, xn: torch.Tensor, yn: torch.Tensor):
 
-    # FIXME: is there any faster way?
-    for Ti, Ui, pad_l in zip(frames_lengths, labels_lengths, padded_labels):
-        _local = Ti * (Ui + 1)
-        index[offset:offset+_local, 1] = pad_l.repeat(Ti, 1).view(-1)
-        offset += _local
+    assert xs.dim() == 4
+    assert ys.dim() == 2
 
-    # print(index)
-    log_probs = log_probs.gather(dim=1, index=index)
-    return log_probs
+    N, T, Up, V = xs.size()
+    assert ys.size() == (N, Up-1)
+    assert xn.size(0) == N
+    assert yn.size(0) == N
+
+    _ys = torch.cat([ys[i, :yn[i]] for i in range(N)])
+    _xs = [xs[i, :xn[i], :yn[i]+1, :].contiguous() for i in range(N)]
+    _xs = torch.cat([x.view(-1, V) for x in _xs], dim=0)
+
+    return _xs, _ys
+
+
+def reverseCompact(xs: torch.Tensor, ys: torch.Tensor, xn: torch.Tensor, yn: torch.Tensor):
+
+    N, T, U, V = xn.size(0), xn.max(), yn.max(), xs.size(-1)
+    _xs = xs.new_zeros((N, T, U+1, V))
+    _ys = ys.new_zeros((N, U))
+
+    offset = 0
+    offset_y = 0
+    for n in range(N):
+        Ti, Uip = xn[n], yn[n]+1
+        _xs[n, :Ti, :Uip, :] = xs[offset:offset+Ti*Uip, :].view(Ti, Uip, V)
+
+        _ys[n, :Uip-1] = ys[offset_y:offset_y+Uip-1].view(-1)
+        offset += Ti*Uip
+        offset_y += Uip-1
+
+    return _xs, _ys
 
 
 def test_calls():
-    n = 5
-    t = 5
-    u = 2
+    n = 20
+    t = 32
+    u = 16
     v = 3
     cnt = 0
-    for i in range(5):
+    for i in range(1):
         torch.manual_seed(i)
         xn = torch.tensor([t] * n, dtype=torch.int, device=0)
         yn = torch.randint(1, u, (n,), dtype=torch.int, device=0)
@@ -74,8 +92,68 @@ def test_calls():
 
         cnt += torch.all(real_grads == real_grads_gather)
 
+        # xs.requires_grad = False
+        # xs, ys = reverseCompact(xs, ys, xn, yn)
+        xs.requires_grad = True
+        torch.autograd.gradcheck(
+            rnnt_loss, (xs, ys, xn, yn, False, 'mean', 0, False, 0.0, True))
+
     print("Gather mode produces {} same results as non-gather one.".format(cnt))
 
 
+def test_compute():
+
+    NTest = 3
+
+    for seed in range(NTest):
+        torch.manual_seed(seed)
+        N = torch.randint(1, 20, (1,)).item()
+        T = torch.randint(5, 512, (1,)).item()
+        U = torch.randint(1, 512, (1,)).item()
+        V = torch.randint(3, 128, (1,)).item()
+
+        xs = torch.randn((N, T, U, V), dtype=torch.float32,
+                         device=0).log_softmax(dim=-1)
+        ys = torch.randint(1, V, (N, U-1), dtype=torch.int, device=0)
+        xn = torch.randint(T // 2, T+1, (N,), dtype=torch.int, device=0)
+        yn = torch.randint(U // 2, U, (N,), dtype=torch.int, device=0)
+        xn = xn + T - xn.max()
+        yn = yn + U-1 - yn.max()
+
+        # print("{0} Test loaded sample {0}".format("="*10))
+        # checkpoint = torch.load(
+        #     'CheckForTestRNNT.pt', map_location='cuda:0')
+        # xs, ys, xn, yn = tuple(checkpoint.values())
+        # xs.requires_grad = False
+        # ys.requires_grad = False
+        # xs, ys = reverseCompact(xs, ys, xn, yn)
+
+        ys = ys.to(dtype=torch.int)
+        xn, yn = xn.to(dtype=torch.int, device=0), yn.to(
+            dtype=torch.int, device=0)
+        print("xs size: ", xs.size())
+        print("ys size: ", ys.size())
+        print("lx size: ", xn.size())
+        print("ly size: ", yn.size())
+        xs.requires_grad = True
+
+        m_cost = rnnt_loss(xs, ys, xn, yn, gather=False, compact=False)
+        m_cost.sum().backward()
+        m_grad = xs.grad.data.detach()
+        xs.grad = None
+
+        _xs, _ys = compactTensor(xs, ys, xn, yn)
+        t_cost = rnnt_loss(_xs, _ys, xn, yn, gather=True, compact=True)
+        t_cost.sum().backward()
+        t_grad = xs.grad.data.detach()
+
+        print("backward diff 1-order norm: {:.4e}".format(
+            torch.sum(torch.abs(m_grad - t_grad)).item()))
+
+        print("correctness: forward | backward : {} | {}\n".format(
+            torch.all(m_cost == t_cost).item(), torch.all(m_grad == t_grad).item()))
+
+
 if __name__ == "__main__":
+    # test_compute()
     test_calls()

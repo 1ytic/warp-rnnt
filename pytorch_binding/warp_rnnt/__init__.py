@@ -45,8 +45,8 @@ class RNNTLossCompact(torch.autograd.Function):
         grads, loc, cumSum = ctx.saved_tensors
 
         grads_input = core.rnnt_loss_compact_backward(
-            grads_output, grads, cumSum, loc, ctx.V, ctx.blank)
-        print(grads_input.size())
+            grads_output.contiguous(), grads, cumSum, loc, ctx.V, ctx.blank)
+
         return grads_input, None, None, None, None, None
 
 

@@ -1,0 +1,95 @@
+warp-rnnt
+T=150	U=40	V=28	N=1	    time=1.36   	memory=3
+T=150	U=40	V=28	N=16	time=2.37   	memory=43
+T=150	U=40	V=28	N=32	time=2.34   	memory=86
+T=150	U=40	V=28	N=64	time=3.02   	memory=176
+T=150	U=40	V=28	N=128	time=4.02   	memory=344
+
+T=150	U=20	V=5000	N=1	    time=2.69   	memory=243
+T=150	U=20	V=5000	N=16	time=48.50  	memory=3842
+T=150	U=20	V=5000	N=32	time=125.63 	memory=7684
+T=150	U=20	V=5000	N=64	time=281.33 	memory=15360
+T=150	U=20	V=5000	N=128	OOM
+
+T=1500	U=300	V=50	N=1	    time=6.33   	memory=23044
+T=1500	U=300	V=50	N=16	time=89.24  	memory=5763
+T=1500	U=300	V=50	N=32	time=199.27 	memory=11520
+T=1500	U=300	V=50	N=64	time=396.78 	memory=23044
+
+T=400	U=100	V=1024	N=1	    time=5.93   	memory=655
+T=400	U=100	V=1024	N=16	time=169.23 	memory=10486
+T=400	U=100	V=1024	N=32	time=258.24 	memory=20972
+T=400	U=100	V=1024	N=64	OOM
+
+
+warp-rnnt-compact
+T=150	U=40	V=28	N=1	    time=1.74   	memory=3
+T=150	U=40	V=28	N=16	time=1.00   	memory=30
+T=150	U=40	V=28	N=32	time=2.30   	memory=58
+T=150	U=40	V=28	N=64	time=2.81   	memory=110
+T=150	U=40	V=28	N=128	time=6.47   	memory=209
+
+T=150	U=20	V=5000	N=1	    time=2.58   	memory=243
+T=150	U=20	V=5000	N=16	time=12.92  	memory=2768
+T=150	U=20	V=5000	N=32	time=28.38  	memory=4993
+T=150	U=20	V=5000	N=64	time=71.62  	memory=9671
+T=150	U=20	V=5000	N=128	time=197.58 	memory=19286
+
+T=1500	U=300	V=50	N=1	    time=7.37   	memory=361
+T=1500	U=300	V=50	N=16	time=44.72  	memory=3632
+T=1500	U=300	V=50	N=32	time=90.88  	memory=6988
+T=1500	U=300	V=50	N=64	time=227.95 	memory=14277
+
+T=400	U=100	V=1024	N=1	    time=6.22   	memory=655
+T=400	U=100	V=1024	N=16	time=50.84  	memory=7165
+T=400	U=100	V=1024	N=32	time=124.02 	memory=13580
+T=400	U=100	V=1024	N=64	OOM
+
+warp-rnnt-gather
+T=150   U=40    V=28    N=1     time=1.47       memory=3
+T=150   U=40    V=28    N=16    time=3.01       memory=44
+T=150   U=40    V=28    N=32    time=3.21       memory=88
+T=150   U=40    V=28    N=64    time=3.46       memory=179
+T=150   U=40    V=28    N=128   time=4.85       memory=350
+
+T=150   U=20    V=5000  N=1     time=3.28       memory=243
+T=150   U=20    V=5000  N=16    time=49.00      memory=3842
+T=150   U=20    V=5000  N=32    time=125.93     memory=7685
+T=150   U=20    V=5000  N=64    time=238.11     memory=15362
+T=150   U=20    V=5000  N=128   OOM
+
+T=1500  U=300   V=50    N=1     time=7.14       memory=23049
+T=1500  U=300   V=50    N=16    time=77.53      memory=5821
+T=1500  U=300   V=50    N=32    time=165.78     memory=11635
+T=1500  U=300   V=50    N=64    time=287.29     memory=23274
+
+T=400   U=100   V=1024  N=1     time=16.31      memory=656
+T=400   U=100   V=1024  N=16    time=168.10     memory=10491
+T=400   U=100   V=1024  N=32    time=243.67     memory=20982
+T=400   U=100   V=1024  N=64    OOM
+
+
+warp-rnnt-gather-compact
+T=150	U=40	V=28	N=1	    time=1.73   	memory=3
+T=150	U=40	V=28	N=16	time=1.18   	memory=30
+T=150	U=40	V=28	N=32	time=2.54   	memory=58
+T=150	U=40	V=28	N=64	time=2.78   	memory=110
+T=150	U=40	V=28	N=128	time=3.11   	memory=209
+
+T=150	U=20	V=5000	N=1	    time=3.24   	memory=243
+T=150	U=20	V=5000	N=16	time=14.51  	memory=2768
+T=150	U=20	V=5000	N=32	time=25.89  	memory=4993
+T=150	U=20	V=5000	N=64	time=65.15  	memory=9671
+T=150	U=20	V=5000	N=128	time=205.40 	memory=19286
+
+T=1500	U=300	V=50	N=1	    time=6.44   	memory=361
+T=1500	U=300	V=50	N=16	time=34.84  	memory=3632
+T=1500	U=300	V=50	N=32	time=73.32  	memory=6988
+T=1500	U=300	V=50	N=64	time=147.23 	memory=14277
+
+T=400	U=100	V=1024	N=1	    time=6.53   	memory=655
+T=400	U=100	V=1024	N=16	time=82.73  	memory=7165
+T=400	U=100	V=1024	N=32	time=118.73 	memory=13580
+T=400	U=100	V=1024	N=64	OOM
+
+

@@ -29,13 +29,23 @@ __global__ void kernel_fill_gather(const float *xs, const int *ys, const unsigne
     unsigned int mem_loc = memPref[n];
 
     // l = ys(n, u)
-    unsigned int l = ys[labelPref[n] + u];
-    loc[mem_loc + t * actual_u + u] = l;
-    float *ptr_gather = gather_xs + ((mem_loc + t * actual_u + u) << 1);
+    unsigned int _index = mem_loc + t * actual_u + u;
+    float *ptr_gather = gather_xs + (_index << 1);
     // gather_xs(n, t, u, 0) = xs(n, t, u, blank)
-    *(ptr_gather++) = xs[(mem_loc + t * actual_u + u) * V + blank];
+    *(ptr_gather++) = xs[_index * V + blank];
+    unsigned int l;
+    if (u == yn[n])
+    {
+        // last row
+        l = blank;
+    }
+    else
+    {
+        l = ys[labelPref[n] + u];
+    }
+    loc[_index] = l;
     // gather_xs(n, t, u, 1) = xs(n, t, u, l)
-    *ptr_gather = xs[(mem_loc + t * actual_u + u) * V + l];
+    *ptr_gather = xs[_index * V + l];
 }
 
 rnntStatus_t run_gather(cudaStream_t stream, const float *xs, const int *ys, const unsigned int *xn, const unsigned int *yn,
@@ -58,11 +68,14 @@ __global__ void kernel_fill_scatter_grad(const float *grad_cost, const float *ga
                                          const unsigned int *cumSum, float *scatter_grad,
                                          unsigned int STU, unsigned int V, unsigned int blank)
 {
-    unsigned int i = blockIdx.x * WL + threadIdx.x;
+    // return;
+    // unsigned int i = blockIdx.x * WL + threadIdx.x;
+    unsigned int i = blockIdx.y * (WL * gridDim.x) + blockIdx.x * WL + threadIdx.x;
     if (i >= STU)
         return;
 
-    unsigned int n = blockIdx.y;
+    // unsigned int n = blockIdx.y;
+    unsigned int n = blockIdx.z;
     // ensure i in [cumSum[n-1], cumSum[n]]
     if (i >= cumSum[n] || (n > 0 && i < cumSum[n - 1]))
         return;
@@ -90,10 +103,10 @@ rnntStatus_t run_scatter_grad(cudaStream_t stream, const float *grad_cost, const
 
     dim3 threads1(WL, 2);
 
-    dim3 blocks1((STU + WL - 1) / WL, N);
+    // dim3 blocks1((STU + WL - 1) / WL, N);
 
     // STU/WL = (STU/WL)/W, W = (1 + (STU - 1)/WL)/W, W = (1 + (1 + (STU - 1)/WL) - 1)/W, W
-    // dim3 blocks1(1 + ((1 + (STU - 1) / WL) - 1) / W, W, N);
+    dim3 blocks1(1 + ((1 + (STU - 1) / WL) - 1) / W, W, N);
 
     kernel_fill_scatter_grad<<<blocks1, threads1, 0, stream>>>(grad_cost, gather_grad, loc, cumSum, scatter_grad, STU, V, blank);
     if (cudaGetLastError() != cudaSuccess)
