@@ -83,7 +83,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, required=False,
                         help="The target implementation", default="cuda")
     parser.add_argument("--random_length", type=bool,
-                        required=False, help="The random length", default=True)
+                        required=False, help="The random length", default=False)
 
     args = parser.parse_args()
 
@@ -125,12 +125,8 @@ if __name__ == "__main__":
             return fn.apply(F.log_softmax(xs, dim=-1), ys.view(-1), xn, yn)
     else:
         raise ValueError("Unknown RNN-T loss")
-# (100, 150, 40, 28), (50, 150, 20, 5000), (10, 1500, 300, 50), (10, 400, 100, 1024)
-    for E, T, U, V in [(100, 150, 40, 28), (50, 150, 20, 5000), (10, 1500, 300, 50), (10, 400, 100, 1024)]:
+    for E, T, U, V in [(100, 150, 40, 28), (50, 150, 20, 5000), (10, 1500, 300, 50)]:
         for N in [1, 16, 32, 64, 128]:
-            if (E, T, U, V, N) in [(10, 1500, 300, 50, 128), (10, 400, 100, 1024, 128)]:
-                torch.cuda.reset_peak_memory_stats()
-                continue
             print(f"T={T}\tU={U}\tV={V}\tN={N}\t", end="")
             try:
                 time = run_benchmark(

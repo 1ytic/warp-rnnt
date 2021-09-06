@@ -1,3 +1,4 @@
+#!/bin/bash
 
 result=BenchMarkResults.txt
 
@@ -10,7 +11,7 @@ mkdir .benchmarktmp
 cp benchmark.py .benchmarktmp/
 for loss in warp-rnnt warp-rnnt-compact warp-rnnt-gather warp-rnnt-gather-compact; do
     echo $loss
-    CUDA_VISIBLE_DEVICES=8 python .benchmarktmp/benchmark.py \
+    CUDA_VISIBLE_DEVICES=0 python .benchmarktmp/benchmark.py --random_length \
         --loss=$loss || exit 1
     echo ""
 done > $result
