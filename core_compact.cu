@@ -45,8 +45,6 @@ __device__ void kernel_warp_alphas_compact(unsigned int *counts, volatile float 
     unsigned int t = p + d + 1;
 
     assert(d < W);
-    // assert(u <= Um);
-    // assert(gridDim.y == Um);
     assert(blockDim.x == W);
 
     int actual_t = xn[n];
@@ -58,13 +56,12 @@ __device__ void kernel_warp_alphas_compact(unsigned int *counts, volatile float 
     unsigned int mem_beg = memPref[n];
     unsigned int mem_loc = mem_beg / V;
 
-    // unsigned int *lock = counts + n * Um * 2 + blockIdx.y;
     unsigned int *lock = counts + (labelPref[n] + n) * 2 + blockIdx.y;
 
     if (blockIdx.x == 0 && blockIdx.y == 0)
     {
         // initialize the state as log(p) = 0.
-        // alphas[idx3(n, 0, 0, Tm, Um)] = 0;
+        // alphas[n, 0, 0] = 0;
         alphas[mem_loc] = 0.0f;
     }
 
@@ -89,15 +86,16 @@ __device__ void kernel_warp_alphas_compact(unsigned int *counts, volatile float 
 
         // Compute initial row value
 
-        // unsigned int l = labels[idx2(n, u - 1, Um - 1)];
+        // l = labels[n, u-1]
         unsigned int l = labels[labelPref[n] + u - 1];
 
-        // float a = alphas[idx3(n, 0, u - 1, Tm, Um)];
+        // a = alphas[n, 0, u-1]
         float a = alphas[mem_loc + u - 1];
-        // float b = log_probs[idx4(n, 0, u - 1, l, Tm, Um, V)];
+
+        // b = log_probs[n, 0, u-1, l]
         float b = log_probs[mem_beg + (u - 1) * V + l];
 
-        // alphas[idx3(n, 0, u, Tm, Um)] = a + b;
+        // alphas[n, 0, u] = a + b
         alphas[mem_loc + u] = a + b;
     }
 
@@ -107,7 +105,8 @@ __device__ void kernel_warp_alphas_compact(unsigned int *counts, volatile float 
         // Compute initial column with local scan algorithm
 
         float a;
-        // float b = log_probs[idx4(n, t - 1, 0, blank, Tm, Um, V)];
+
+        // b = log_probs[n, t-1, 0, blank]
         float b = log_probs[mem_beg + (t - 1) * actual_u * V + blank];
 
 #pragma unroll
@@ -120,10 +119,10 @@ __device__ void kernel_warp_alphas_compact(unsigned int *counts, volatile float 
             }
         }
 
-        // a = alphas[idx3(n, p, 0, Tm, Um)];
+        // a = alphas[n, p, 0]
         a = alphas[mem_loc + p * actual_u];
 
-        // alphas[idx3(n, t, 0, Tm, Um)] = a + b;
+        // alphas[n, t, 0] = a + b;
         alphas[mem_loc + t * actual_u] = a + b;
     }
 
@@ -132,14 +131,16 @@ __device__ void kernel_warp_alphas_compact(unsigned int *counts, volatile float 
 
         // Ready to compute alphas[t, u]
 
-        // unsigned int l = labels[idx2(n, u - 1, Um - 1)];
+        // l = labels[n, u-1]
         unsigned int l = labels[labelPref[n] + u - 1];
 
-        // float bias = log_probs[idx4(n, t - 1, u, blank, Tm, Um, V)];
+        // bias = log_probs[n, t-1, u, blank]
         float bias = log_probs[mem_beg + (t - 1) * actual_u * V + u * V + blank];
-        // float skip = alphas[idx3(n, p, u, Tm, Um)] + bias;
+
+        // skip = alphas[n, p, u] + bias
         float skip = alphas[mem_loc + p * actual_u + u] + bias;
-        // float emit = alphas[idx3(n, t, u - 1, Tm, Um)] + log_probs[idx4(n, t, u - 1, l, Tm, Um, V)];
+
+        // emit = alphas[n, t, u-1] + log_probs[n, t, u-1, l]
         float emit = alphas[mem_loc + t * actual_u + u - 1] + log_probs[mem_beg + t * actual_u * V + (u - 1) * V + l];
 
         float r = log_sum_exp(skip, emit);
@@ -155,7 +156,7 @@ __device__ void kernel_warp_alphas_compact(unsigned int *counts, volatile float 
             }
         }
 
-        // alphas[idx3(n, t, u, Tm, Um)] = output;
+        // alphas[n, t, u] = output
         alphas[mem_loc + t * actual_u + u] = output;
     }
 
@@ -181,8 +182,6 @@ __device__ void kernel_warp_betas_compact(unsigned int *counts, volatile float *
     unsigned int t = p + d + 1;
 
     assert(d < W);
-    // assert(u <= U);
-    // assert(gridDim.y == U);
     assert(blockDim.x == W);
 
     int actual_t = xn[n];
@@ -196,12 +195,11 @@ __device__ void kernel_warp_betas_compact(unsigned int *counts, volatile float *
     unsigned int mem_beg = memPref[n];
     unsigned int mem_loc = mem_beg / V;
 
-    // unsigned int *lock = counts + n * U * 2 + U + blockIdx.y;
     unsigned int *lock = counts + (labelPref[n] + n) * 2 + actual_u + blockIdx.y;
 
     if (blockIdx.x == 0 && blockIdx.y == 0)
     {
-        // betas[idx3(n, T1, U1, T, U)] = log_probs[idx4(n, T1, U1, blank, T, U, V)];
+        // betas[n, T1, U1] = log_probs[n, T1, U1, blank]
         betas[mem_loc + T1 * actual_u + U1] = log_probs[mem_beg + T1 * actual_u * V + U1 * V + blank];
     }
 
@@ -226,15 +224,16 @@ __device__ void kernel_warp_betas_compact(unsigned int *counts, volatile float *
 
         // Compute last row value
 
-        // unsigned int l = labels[idx2(n, U1 - u, U - 1)];
+        // l = labels[n, U1-u]
         unsigned int l = labels[labelPref[n] + U1 - u];
 
-        // float a = betas[idx3(n, T1, U1 - u + 1, T, U)];
+        // a = betas[n, T1, U1-u+1]
         float a = betas[mem_loc + T1 * actual_u + U1 - u + 1];
-        // float b = log_probs[idx4(n, T1, U1 - u, l, T, U, V)];
+
+        // b = log_probs[n, T1, U1-u, l]
         float b = log_probs[mem_beg + T1 * actual_u * V + (U1 - u) * V + l];
 
-        // betas[idx3(n, T1, U1 - u, T, U)] = a + b;
+        // betas[n, T1, U1-u] = a + b
         betas[mem_loc + T1 * actual_u + U1 - u] = a + b;
     }
 
@@ -244,7 +243,8 @@ __device__ void kernel_warp_betas_compact(unsigned int *counts, volatile float *
         // Compute last column with local scan algorithm
 
         float a;
-        // float b = log_probs[idx4(n, T1 - t, U1, blank, T, U, V)];
+
+        // b = log_probs[n, T1-t, U1, blank]
         float b = log_probs[mem_beg + (T1 - t) * actual_u * V + U1 * V + blank];
 
 #pragma unroll
@@ -257,10 +257,10 @@ __device__ void kernel_warp_betas_compact(unsigned int *counts, volatile float *
             }
         }
 
-        // a = betas[idx3(n, T1 - p, U1, T, U)];
+        // a = betas[n, T1-p, U1]
         a = betas[mem_loc + (T1 - p) * actual_u + U1];
 
-        // betas[idx3(n, T1 - t, U1, T, U)] = a + b;
+        // betas[n, T1 - t, U1] = a + b;
         betas[mem_loc + (T1 - t) * actual_u + U1] = a + b;
     }
 
@@ -269,14 +269,16 @@ __device__ void kernel_warp_betas_compact(unsigned int *counts, volatile float *
 
         // Ready to compute betas[T1-t, U1-u]
 
-        // unsigned int l = labels[idx2(n, U1 - u, U - 1)];
+        // l = labels[n, U1 - u];
         unsigned int l = labels[labelPref[n] + U1 - u];
 
-        // float bias = log_probs[idx4(n, T1 - t, U1 - u, blank, T, U, V)];
+        // bias = log_probs[n, T1 - t, U1 - u, blank];
         float bias = log_probs[mem_beg + (T1 - t) * actual_u * V + (U1 - u) * V + blank];
-        // float skip = betas[idx3(n, T1 - p, U1 - u, T, U)] + bias;
+
+        // skip = betas[n, T1 - p, U1 - u] + bias;
         float skip = betas[mem_loc + (T1 - p) * actual_u + U1 - u] + bias;
-        // float emit = betas[idx3(n, T1 - t, U1 - u + 1, T, U)] + log_probs[idx4(n, T1 - t, U1 - u, l, T, U, V)];
+
+        // emit = betas[n, T1 - t, U1 - u + 1] + log_probs[n, T1 - t, U1 - u, l];
         float emit = betas[mem_loc + (T1 - t) * actual_u + U1 - u + 1] + log_probs[mem_beg + (T1 - t) * actual_u * V + (U1 - u) * V + l];
 
         float r = log_sum_exp(skip, emit);
@@ -291,7 +293,7 @@ __device__ void kernel_warp_betas_compact(unsigned int *counts, volatile float *
             }
         }
 
-        // betas[idx3(n, T1 - t, U1 - u, T, U)] = output;
+        // betas[n, T1 - t, U1 - u] = output;
         betas[mem_loc + (T1 - t) * actual_u + U1 - u] = output;
     }
 
@@ -311,12 +313,10 @@ __global__ void kernel_warp_compact(unsigned int *counts, volatile float *alphas
     if (threadIdx.y == 0)
     {
         kernel_warp_alphas_compact(counts, alphas, labels, log_probs, xn, yn, memPref, labelPref, V, blank);
-        // kernel_warp_alphas_compact(counts, alphas, labels, log_probs, xn, yn, Tm, Um, V, blank);
     }
     else if (threadIdx.y == 1)
     {
         kernel_warp_betas_compact(counts, betas, labels, log_probs, xn, yn, memPref, labelPref, V, blank);
-        // kernel_warp_betas_compact(counts, betas, labels, log_probs, xn, yn, Tm, Um, V, blank);
     }
 }
 
@@ -330,10 +330,8 @@ __global__ void kernel_grads_blank_compact(float *grads, const float *alphas, co
     unsigned int n = blockIdx.z;
     unsigned int t = g * G + d;
 
-    // assert(u < U);
     assert(d < G);
     assert(blockDim.x == G);
-    // assert(gridDim.y == U);
 
     int actual_t = xn[n];
     int actual_u = yn[n] + 1;
@@ -346,19 +344,19 @@ __global__ void kernel_grads_blank_compact(float *grads, const float *alphas, co
 
     int mem_beg = memPref[n];
     int mem_loc = mem_beg / V;
-    // float a = alphas[idx3(n, t, u, T, U)];
+    // a = alphas[n, t, u];
     float a = alphas[mem_loc + t * actual_u + u];
 
     if (t < actual_t - 1)
     {
-        // a += betas[idx3(n, t + 1, u, T, U)];
+        // a += betas[n, t + 1, u];
         a += betas[mem_loc + (t + 1) * actual_u + u];
     }
 
-    // unsigned int index = idx4(n, t, u, blank, T, U, V);
+    // index = (n, t, u, blank);
     unsigned int index = mem_beg + t * actual_u * V + u * V + blank;
 
-    // a = expf(a + log_probs[index] - betas[idx3(n, 0, 0, T, U)]);
+    // a = expf(a + log_probs[index] - betas[n, 0, 0]);
     a = expf(a + log_probs[index] - betas[mem_loc]);
 
     grads[index] = -a;
@@ -376,10 +374,8 @@ __global__ void kernel_grads_label_compact(float *grads, const float *alphas, co
     unsigned int n = blockIdx.z;
     unsigned int t = g * G + d;
 
-    // assert(u < U - 1);
     assert(d < G);
     assert(blockDim.x == G);
-    // assert(gridDim.y == U - 1);
 
     int actual_t = xn[n];
     int actual_u = yn[n];
@@ -391,16 +387,16 @@ __global__ void kernel_grads_label_compact(float *grads, const float *alphas, co
     unsigned int mem_loc = mem_beg / V;
     unsigned int _index = t * (actual_u + 1) + u;
 
-    // unsigned int l = labels[idx2(n, u, U - 1)];
+    // l = labels[n, u];
     unsigned int l = labels[labelPref[n] + u];
 
-    // float a = alphas[idx3(n, t, u, T, U)] + betas[idx3(n, t, u + 1, T, U)];
+    // a = alphas[n, t, u] + betas[n, t, u + 1];
     float a = alphas[mem_loc + _index] + betas[mem_loc + _index + 1];
 
-    // unsigned int index = idx4(n, t, u, l, T, U, V);
+    // index = (n, t, u, l);
     unsigned int index = mem_beg + _index * V + l;
 
-    // a = expf(a + log_probs[index] - betas[idx3(n, 0, 0, T, U)]);
+    // a = expf(a + log_probs[index] - betas[n, 0, 0]);
     a = expf(a + log_probs[index] - betas[mem_loc]);
 
     // apply FastEmit regularization
@@ -433,9 +429,11 @@ __global__ void kernel_fill_costs_compact(float *costs, float *grads, const floa
      * ... at the position (t, u). So here is a assertion whether these two variables
      * ... are equal, if not, empty all the gradients.
      */
-    // float a = alphas[idx3(n, t, u, T, U)] + log_probs[idx4(n, t, u, blank, T, U, V)];
+
+    // a = alphas[n, t, u] + log_probs[n, t, u, blank]
     float a = alphas[mem_loc + t * (u + 1) + u] + log_probs[mem_beg + t * (u + 1) * V + u * V + blank];
-    // float b = betas[idx3(n, 0, 0, T, U)];
+
+    // b = betas[n, 0, 0]
     float b = betas[mem_loc];
 
     float ratio = fabsf(a - b) / fabsf(fmaxf(a, b));
@@ -447,7 +445,7 @@ __global__ void kernel_fill_costs_compact(float *costs, float *grads, const floa
         printf("\nWARNING: sample %d [%d, %d] has a forward/backward mismatch %f / %f\n",
                n, t + 1, u, a, b);
 
-        // float *g = grads + idx4(n, 0, 0, 0, T, U, V);
+        // grads[n, 0, 0, 0]
         float *g = grads + mem_beg;
 
         for (int i = 0; i < t + 1; ++i)
@@ -481,13 +479,11 @@ rnntStatus_t run_warp_rnnt_compact(cudaStream_t stream, unsigned int *counts, fl
     dim3 threads1(W, 2);
     dim3 blocks1((Tm + W - 1) / W, Um, N);
     kernel_warp_compact<<<blocks1, threads1, 0, stream>>>(counts, alphas, betas, labels, log_probs, xn, yn, memPref, labelPref, V, blank);
-    // kernel_warp_compact<<<blocks1, threads1, 0, stream>>>(counts, alphas, betas, labels, log_probs, xn, yn, Tm, Um, V, blank);
     if (cudaGetLastError() != cudaSuccess)
         return RNNT_STATUS_WARP_FAILED;
 
     dim3 blocks2((Tm + G - 1) / G, Um, N);
     kernel_grads_blank_compact<<<blocks2, G, 0, stream>>>(grads, alphas, betas, log_probs, xn, yn, memPref, V, blank);
-    // kernel_grads_blank_compact<<<blocks2, G, 0, stream>>>(grads, alphas, betas, log_probs, xn, yn, Tm, Um, V, blank);
     if (cudaGetLastError() != cudaSuccess)
         return RNNT_STATUS_GRADS_BLANK_FAILED;
 
@@ -496,14 +492,12 @@ rnntStatus_t run_warp_rnnt_compact(cudaStream_t stream, unsigned int *counts, fl
 
         dim3 blocks3((Tm + G - 1) / G, Um - 1, N);
         kernel_grads_label_compact<<<blocks3, G, 0, stream>>>(grads, alphas, betas, labels, log_probs, xn, yn, memPref, labelPref, V, fastemit_lambda);
-        // kernel_grads_label_compact<<<blocks3, G, 0, stream>>>(grads, alphas, betas, labels, log_probs, xn, yn, Tm, Um, V, fastemit_lambda);
         if (cudaGetLastError() != cudaSuccess)
             return RNNT_STATUS_GRADS_LABEL_FAILED;
     }
 
     dim3 blocks4((N + B - 1) / B, 1, 1);
     kernel_fill_costs_compact<<<blocks4, B, 0, stream>>>(costs, grads, alphas, betas, log_probs, xn, yn, memPref, N, V, blank);
-    // kernel_fill_costs_compact<<<blocks4, B, 0, stream>>>(costs, grads, alphas, betas, log_probs, xn, yn, N, Tm, Um, V, blank);
     if (cudaGetLastError() != cudaSuccess)
         return RNNT_STATUS_COSTS_FAILED;
 
