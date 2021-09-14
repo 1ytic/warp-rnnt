@@ -215,10 +215,10 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, int> rnnt_loss_compact_f
         status = run_warp_rnnt_compact(stream,
                                        (unsigned int *)counts.data_ptr<int>(),
                                        alphas.data_ptr<float>(), betas.data_ptr<float>(),
-                                       (unsigned int *)ys.data_ptr<int>(), xs.data_ptr<float>(),
+                                       ys.data_ptr<int>(), xs.data_ptr<float>(),
                                        grads.data_ptr<float>(), costs.data_ptr<float>(),
-                                       (unsigned int *)xn.data_ptr<int>(), (unsigned int *)yn.data_ptr<int>(),
-                                       (unsigned int *)memPref.data_ptr<int>(), (unsigned int *)labelPref.data_ptr<int>(),
+                                       xn.data_ptr<int>(), yn.data_ptr<int>(),
+                                       memPref.data_ptr<int>(), labelPref.data_ptr<int>(),
                                        N, Tm, Um, V, blank, fastemit_lambda);
         TORCH_CHECK(status == RNNT_STATUS_SUCCESS, "rnnt_loss status " + std::to_string(status));
 
