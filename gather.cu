@@ -140,7 +140,7 @@ rnntStatus_t run_backward_compact(cudaStream_t stream, const float *grad_cost, f
     // grad_cost (N, )
     // grad (STU, V)
     dim3 threads(W, H);
-    dim3 blocks((STU + W - 1) / W, (V + H - 1) / V, N); // (N-1) redundancy
+    dim3 blocks((STU + W - 1) / W, (V + H - 1) / H, N); // (N-1) redundancy
 
     kernel_fill_grad<<<blocks, threads, 0, stream>>>(grad_cost, grad, cumSum, STU, V);
     if (cudaGetLastError() != cudaSuccess)
