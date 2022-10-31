@@ -11,10 +11,6 @@
 #define G 1024
 #define B 256
 
-__forceinline__ __device__ static int idx2(int n, int u, int U1) {
-    return n * U1 + u;
-}
-
 __forceinline__ __device__ static int idx3(int n, int t, int u, int T, int U) {
     return n * (T * U) + t * U + u;
 }
