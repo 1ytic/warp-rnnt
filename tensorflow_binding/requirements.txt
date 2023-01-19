@@ -1,1 +1,3 @@
-tensorflow-gpu~=1.15.0
+scipy~=1.7.3
+numpy~=1.21.6
+tensorflow~=2.9.2

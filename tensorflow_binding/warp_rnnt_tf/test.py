@@ -1,64 +1,46 @@
-import os
-import tensorflow as tf
 import numpy as np
-from transducer_tensorflow import transducer_loss
+import tensorflow as tf
 from scipy.special import log_softmax
-
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+from tensorflow.python.framework.ops import disable_eager_execution
+from . import rnnt_loss
 
 np.random.seed(42)
-tf.set_random_seed(42)
+tf.random.set_seed(42)
 
 
 class RNNTLossTest(tf.test.TestCase):
 
-    def _run_transducer(self, xs, xn,
-                        ys, yn,
-                        expected_costs, expected_grads,
-                        blank=0,
-                        use_gpu=True, expected_error=None,
-                        gather=False):
+    def _run_transducer(self, xs, xn, ys, yn,
+                        expected_costs=None, expected_grads=None,
+                        blank=0, gather=False):
 
-        with tf.device("/gpu:0"):
-            xs_t = tf.constant(xs)
-            xn_t = tf.constant(xn)
-            ys_t = tf.constant(ys)
-            yn_t = tf.constant(yn)
-            costs = transducer_loss(
-                log_probs=xs_t,
-                labels=ys_t,
-                frames_lengths=xn_t,
-                labels_lengths=yn_t,
-                average_frames=False,
-                reduction=None,
-                blank=blank,
-                gather=gather)
+        @tf.function
+        def graph_execution():
+          xs_t = tf.constant(xs)
+          xn_t = tf.constant(xn)
+          ys_t = tf.constant(ys)
+          yn_t = tf.constant(yn)
+          costs = rnnt_loss(
+              log_probs=xs_t,
+              labels=ys_t,
+              frames_lengths=xn_t,
+              labels_lengths=yn_t,
+              average_frames=False,
+              reduction=None,
+              blank=blank,
+              gather=gather)
+          grads = tf.gradients(costs, xs_t)[0]
+          return costs, grads
 
-            grad = tf.gradients(costs, [xs_t])[0]
+        with tf.device("/device:GPU:0"):
+          costs1, grad1 = graph_execution()
 
-        log_dev_placement = False
-        if not use_gpu:
-            # Note: using use_gpu=False seems to not work
-            # it runs the GPU version instead
-            config = tf.ConfigProto(log_device_placement=log_dev_placement,
-                                    device_count={'GPU': 0})
-        else:
-            config = tf.ConfigProto(log_device_placement=log_dev_placement,
-                                    allow_soft_placement=False)
-
-        with self.test_session(use_gpu=use_gpu, force_gpu=use_gpu, config=config) as sess:
-            if expected_error is None:
-                (tf_costs, tf_grad) = sess.run([costs, grad])
-                if not isinstance(expected_costs, type(None)):
-                    self.assertAllClose(tf_costs, expected_costs, atol=1e-6)
-                if not isinstance(expected_grads, type(None)):
-                    self.assertAllClose(tf_grad, expected_grads, atol=1e-6)
-            else:
-                with self.assertRaisesOpError(expected_error):
-                    sess.run([costs, grad])
-
-                    sess.run([costs, grad])
+        with self.session(use_gpu=True, force_gpu=True) as sess:
+            tf_costs, tf_grad = sess.run([costs1, grad1])
+            if expected_costs is not None:
+                self.assertAllClose(tf_costs, expected_costs, atol=1e-6)
+            if expected_grads is not None:
+                self.assertAllClose(tf_grad, expected_grads, atol=1e-6)
 
     def test_one_to_many(self):
         xs = np.asarray(
@@ -77,10 +59,8 @@ class RNNTLossTest(tf.test.TestCase):
                [-1., 0.0, 0.0, 0.0, 0.0]]]],
             dtype=np.float32)
 
-        self._run_transducer(xs, xn,
-                             ys, yn,
-                             expected_costs, expected_grads,
-                             use_gpu=True, expected_error=None)
+        self._run_transducer(xs, xn, ys, yn,
+                             expected_costs, expected_grads)
 
     def test_one_to_empty(self):
         xs = np.asarray(
@@ -95,10 +75,8 @@ class RNNTLossTest(tf.test.TestCase):
             [[[[-1., 0.0, 0.0, 0.0, 0.0]]]],
             dtype=np.float32)
 
-        self._run_transducer(xs, xn,
-                             ys, yn,
-                             expected_costs, expected_grads,
-                             use_gpu=True, expected_error=None)
+        self._run_transducer(xs, xn, ys, yn,
+                             expected_costs, expected_grads)
 
     def test_forward_single(self):
         xs = np.asarray(
@@ -113,8 +91,7 @@ class RNNTLossTest(tf.test.TestCase):
         ys = np.asarray([[1, 2]], dtype=np.int32)
         xn = np.asarray([2], dtype=np.int32)
         yn = np.asarray([2], dtype=np.int32)
-        expected_cost = 4.495666
-        expected_costs = np.asarray([expected_cost], dtype=np.float32)
+        expected_costs = np.asarray([4.495666], dtype=np.float32)
         expected_grads = np.array(
             [[[[-0.308198071906, -0.6918019280939998, 0.0, 0.0, 0.0],
                [-0.308198071906, 0.0, -0.3836038561880001, 0.0, 0.0],
@@ -124,10 +101,8 @@ class RNNTLossTest(tf.test.TestCase):
                [-0.9999999999999991, 0.0, 0.0, 0.0, 0.0]]]],
             dtype=np.float32)
 
-        self._run_transducer(xs, xn,
-                             ys, yn,
-                             expected_costs, expected_grads,
-                             use_gpu=True, expected_error=None)
+        self._run_transducer(xs, xn, ys, yn,
+                             expected_costs, expected_grads)
 
     def test_forward_batch(self):
 
@@ -188,10 +163,8 @@ class RNNTLossTest(tf.test.TestCase):
         ],
             dtype=np.float32)
 
-        self._run_transducer(xs, xn,
-                             ys, yn,
-                             expected_costs, expected_grads,
-                             use_gpu=True, expected_error=None)
+        self._run_transducer(xs, xn, ys, yn,
+                             expected_costs, expected_grads)
 
     def test_calls(self):
 
@@ -214,13 +187,7 @@ class RNNTLossTest(tf.test.TestCase):
             xn = np.asarray([t] * n, dtype=np.int32)
             yn = np.asarray(rng.randint(1, u, n), dtype=np.int32)
 
-            # costs, grads = transducer_loss(
-            #     xs, ys,
-            #     xn, yn)
-            self._run_transducer(xs, xn,
-                                 ys, yn,
-                                 expected_costs=None, expected_grads=None,
-                                 use_gpu=True, expected_error=None)
+            self._run_transducer(xs, xn, ys, yn)
 
     def test_forward_single_gather(self, blank=0):
 
@@ -244,9 +211,7 @@ class RNNTLossTest(tf.test.TestCase):
         index[:, :, :U-1, 1] = np.expand_dims(ys, axis=1)
         xs = np.take_along_axis(xs, indices=index, axis=3)
 
-        expected_costs = np.array(
-            [4.495666], dtype=np.float32)
-
+        expected_costs = np.array([4.495666], dtype=np.float32)
         expected_grads = np.array(
             [[[[-0.308198071906, -0.6918019280939998],
                [-0.308198071906, -0.3836038561880001],
@@ -255,10 +220,9 @@ class RNNTLossTest(tf.test.TestCase):
                [0.0, -0.6163961438119995],
                [-0.9999999999999991, 0.0]]]])
 
-        self._run_transducer(xs, xn,
-                             ys, yn,
-                             expected_costs=expected_costs, expected_grads=expected_grads,
-                             use_gpu=True, expected_error=None, blank=-1)
+        self._run_transducer(xs, xn, ys, yn,
+                             expected_costs, expected_grads,
+                             blank=-1)
 
     def test_forward_single_inner_gather(self, blank=0):
         xs = np.asarray(
@@ -273,8 +237,7 @@ class RNNTLossTest(tf.test.TestCase):
         ys = np.asarray([[1, 2]], dtype=np.int32)
         xn = np.asarray([2], dtype=np.int32)
         yn = np.asarray([2], dtype=np.int32)
-        expected_cost = 4.495666
-        expected_costs = np.asarray([expected_cost], dtype=np.float32)
+        expected_costs = np.asarray([4.495666], dtype=np.float32)
         expected_grads = np.array(
             [[[[-0.308198071906, -0.6918019280939998, 0.0, 0.0, 0.0],
                [-0.308198071906, 0.0, -0.3836038561880001, 0.0, 0.0],
@@ -284,11 +247,11 @@ class RNNTLossTest(tf.test.TestCase):
                [-0.9999999999999991, 0.0, 0.0, 0.0, 0.0]]]],
             dtype=np.float32)
 
-        self._run_transducer(xs, xn,
-                             ys, yn,
-                             expected_costs=expected_costs, expected_grads=expected_grads,
-                             use_gpu=True, expected_error=None, gather=True)
+        self._run_transducer(xs, xn, ys, yn,
+                             expected_costs, expected_grads,
+                             gather=True)
 
 
 if __name__ == "__main__":
+    disable_eager_execution()
     tf.test.main()

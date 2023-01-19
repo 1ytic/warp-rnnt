@@ -77,7 +77,7 @@ def gather_log_probs(log_probs, labels, blank=0):
     return gather(log_probs, index, 3)
 
 
-def transducer_loss(
+def rnnt_loss(
         log_probs, labels, frames_lengths, labels_lengths,
         average_frames: bool = False,
         reduction: Optional[AnyStr] = None,
@@ -87,15 +87,15 @@ def transducer_loss(
     """The CUDA-Warp Transducer loss.
 
     Args:
-        log_probs (FloatTensor): Input tensor with shape (N, T, U, V)
+        log_probs (Tensor): Float Tensor with shape (N, T, U, V)
             where N is the minibatch size, T is the maximum number of
             input frames, U is the maximum number of output labels and V is
             the vocabulary of labels (including the blank).
-        labels (IntTensor): Tensor with shape (N, U-1) representing the
+        labels (Tensor): Integer Tensor with shape (N, U-1) representing the
             reference labels for all samples in the minibatch.
-        frames_lengths (IntTensor): Tensor with shape (N,) representing the
+        frames_lengths (Tensor): Integer Tensor with shape (N,) representing the
             number of frames for each sample in the minibatch.
-        labels_lengths (IntTensor): Tensor with shape (N,) representing the
+        labels_lengths (Tensor): Integer Tensor with shape (N,) representing the
             length of the transcription for each sample in the minibatch.
         average_frames (bool, optional): Specifies whether the loss of each
             sample should be divided by its number of frames.
@@ -146,10 +146,3 @@ def _TransducerLossGrad(op, grad_loss, _):
     # NOTE since here we are batch first, cannot use _BroadcastMul
     grad_loss = tf.reshape(grad_loss, (-1, 1, 1, 1))
     return [grad_loss * grad, None, None, None]
-
-
-@ops.RegisterShape("TransducerLoss")
-def _TransducerLossShape(op):
-    inputs_shape = op.inputs[0].get_shape().with_rank(4)
-    batch_size = inputs_shape[0]
-    return [batch_size, inputs_shape]

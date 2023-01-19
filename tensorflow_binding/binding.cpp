@@ -6,6 +6,7 @@
 
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/bounds_check.h"
+#include "tensorflow/core/framework/shape_inference.h"
 
 #include "core.h"
 
@@ -35,7 +36,12 @@ REGISTER_OP("TransducerLoss")
 .Attr("blank: int = 0")
 .Attr("fastemit_lambda: float = 0.0")
 .Output("costs: float32")
-.Output("grads: float32");
+.Output("grads: float32")
+.SetShapeFn([](tf::shape_inference::InferenceContext* c) {
+  c->set_output(0, c->input(2));
+  c->set_output(1, c->input(0));
+  return tf::Status::OK();
+});
 
 namespace transducer {
 
@@ -174,6 +180,6 @@ REGISTER_KERNEL_BUILDER(Name("TransducerLoss").Device(::tensorflow::DEVICE_GPU)
                         .HostMemory("costs"),
                         TransducerLossOpGPU);
 
-} /* namespace transducer { */
+} /* namespace transducer */
 
 #undef EIGEN_USE_GPU

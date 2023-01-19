@@ -1,74 +1,43 @@
-# TensorFlow binding for WarpTransducer
+# TensorFlow binding for warp-rnnt
 
-This package provides TensorFlow kernels that wrap the WarpTransducer
-library.
+This package provides TensorFlow kernels that wrap the warp-rnnt library.
 
 ## Installation
 
-To build the kernels it is necessary to have the TensorFlow source
-code available, since TensorFlow doesn't currently install the
-necessary headers to handle the SparseTensor that the CTCLoss op uses
-to input the labels.  You can retrieve the TensorFlow source from
-github.com:
+Compile CUDA files:
 
 ```bash
-git clone https://github.com/tensorflow/tensorflow.git
-```
-<!--
-Tell the build scripts where you have the TensorFlow source tree by
-setting the `TENSORFLOW_SRC_PATH` environment variable:
-
-```bash
-export TENSORFLOW_SRC_PATH=/path/to/tensorflow
-```
--->
-This defaults to `./build`, so from within a
-new warp-rnnt clone you could build WarpTransducer like this:
-
-```bash
-mkdir build; cd build
-cmake  ..
-make
+git clone https://github.com/1ytic/warp-rnnt
+cd warp-rnnt/tensorflow_binding
+mkdir build && cd build && cmake  .. && make
 ```
 
-Ensure you have a GPU, you should also make sure that
-`CUDA_HOME` is set to the home cuda directory (i.e. where
-`include/cuda.h` and `lib/libcudart.so` live).
-
-You should now be able to use `setup.py` to install the package into
-your current Python environment:
+Install the package into current Python environment:
 
 ```bash
-CUDA=/path/to/cuda python setup.py install
+python setup.py install
 ```
 
-You can run a few unit tests with `setup.py` as well if you want:
+Run the tests:
 
 ```bash
-python tests/test_transducer_op_kernel.py
+python -m warp_rnnt_tf.test
 ```
 
 ## Using the kernels
 
-First import the module:
+The warp-rnnt op is available via the `warp_rnnt_tf.rnnt_loss` function:
 
 ```python
-import transducer_tensorflow
+from warp_rnnt_tf import rnnt_loss
+costs = rnnt_loss(log_probs, labels, frames_lengths, label_lengths)
 ```
 
-The WarpTransducer op is available via the `transducer_tensorflow.transducer_loss` function:
-
-```python
-costs = transducer_tensorflow.transducer_loss(log_probs, labels, frames_lengths, label_lengths)
-```
-
-The `log_probs` is a 4 dimensional Tensor, `labels`
-is 2 dimensinal Tensor, and all the others are single dimension Tensors.
-See the main WarpTransducer documentation for more information.
+See the main warp-rnnt documentation for more information.
 
 ## Python interface
 ```python
-def transducer_loss(
+def rnnt_loss(
         log_probs, labels, frames_lengths, labels_lengths,
         average_frames: bool = False,
         reduction: Optional[AnyStr] = None,
@@ -98,4 +67,3 @@ def transducer_loss(
             Default: False.
     """
 ```
-
