@@ -161,7 +161,12 @@ rnnt_loss_compact_forward(const torch::Tensor &xs, const torch::Tensor &ys,
     torch::Tensor loc =
         torch::zeros({STU}, torch::dtype(torch::kInt64).device(xs.device()));
 
-    // gather the labels & blank
+    /* gather the labels & blank
+     * from xs (STU, V) to gather_xs (STU, 2)
+     * gather_xs[:, 0] is collected from  xs[:, blank]
+     * ... and gather_xs[:, 1] is collected from xs representing the log probs of labels
+     * this is similar to non-compact mode and gather=True
+     */
     run_gather_for_compact(
         xs.data_ptr<float>(), ys.data_ptr<int>(),
         (unsigned int *)xn.data_ptr<int>(), (unsigned int *)yn.data_ptr<int>(),

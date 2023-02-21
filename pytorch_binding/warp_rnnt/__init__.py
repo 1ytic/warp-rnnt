@@ -90,7 +90,7 @@ def rnnt_loss(log_probs: torch.FloatTensor,
             (https://arxiv.org/abs/2010.11148).
             Default: 0.0.
         compact (bool, optional): Use compact layout, if True, shapes of inputs should be:
-            log_probs: (STU, 2)
+            log_probs: (STU, V)
             labels:    (SU, )
             where STU = sum(frames_lengths * (labels_lengths+1))
                   SU  = sum(labels_lengths)
