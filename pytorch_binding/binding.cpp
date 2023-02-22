@@ -187,6 +187,11 @@ rnnt_loss_compact_forward(const torch::Tensor &xs, const torch::Tensor &ys,
         // forward variable of RNN-T
         alphas = torch::empty_like(betas);
         grads = torch::empty_like(gather_xs);
+    } else {
+        // refer unused alphas / grads to betas
+        // otherwise following alphas.data_ptr<float>() would raise error
+        alphas = betas;
+        grads = betas;
     }
 
     run_warp_rnnt_compact(
