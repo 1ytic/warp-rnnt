@@ -1,3 +1,11 @@
+"""
+This benchmark script is designed to compare
+    rnnt_loss(..., gather=True) and 
+    rnnt_loss(..., compact=True)
+
+Differed to benchmark.py, this script benchmarks both the overhead
+of rnn-t loss computation along with a typical joint net.
+"""
 import sys
 import argparse
 import pickle
@@ -5,8 +13,6 @@ import pickle
 import torch
 import torch.nn as nn
 from torch.profiler import profile, record_function, ProfilerActivity
-
-T = torch.Tensor
 
 
 class Joint(nn.Module):
@@ -21,7 +27,7 @@ class Joint(nn.Module):
     def requires_packing_(self, requires_packing: bool = True):
         self.requires_packing = requires_packing
 
-    def forward(self, f: T, g: T, lf: T = None, lg: T = None):
+    def forward(self, f: torch.Tensor, g: torch.Tensor, lf: torch.Tensor = None, lg: torch.Tensor = None):
         """
         f : (N, T, H), output of encoder
         g : (N, U+1, H), output of predictor
